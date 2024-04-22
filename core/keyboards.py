@@ -44,12 +44,12 @@ def tickets_list(tickets: list):
     builder.adjust(1, 1)
     return builder.as_markup()
 
-def ticket_actions(track_id: str, isadmin=False):
+def ticket_actions(track_id: str):
     builder = ikbuilder()
     for action, ru in btns["ticket"].items():
         builder.button(
             text=ru, 
-            callback_data=f"ticket_{action}_{track_id}")
+            callback_data=f"tickets_{action}_{track_id}")
     builder.adjust(1, 2)
     return builder.as_markup()
 

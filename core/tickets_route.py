@@ -8,6 +8,7 @@ from core import bot
 from tools.logger import logger as log
 from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_send
 from core.keyboards import ticket_actions
+from aiogram.exceptions import TelegramBadRequest
 # from aiogram.types.reply_keyboard_remove import ReplyKeyboardRemove
 from tools.utils import validate_date
 
@@ -54,6 +55,8 @@ def ticket2text(t: dict, stage=txt_subject, done=False):
 <code>{value}</code>'''
     return f"""Статус заявки: {status}\
         \n*️⃣ - <em>Необходимо указать</em>\
+        \n⚠️ Используйте знак минус <b>-</b> для пропуска
+        \n <b>    --- Информация ---    </b> \
         \n👨‍💻 {t.get('name')} \
         \n📪 {t.get('email')} 🔗 {'Ссылка скрыта' if not t.get('username') else '@'+t.get('username')}\
         \n🔬 Категория: {t.get('category_name')}\
@@ -115,7 +118,7 @@ async def handle_ticket_message(message: types.Message, state: FSMContext):
             if custom_fields:
                 next_stage = custom_fields[0].get('name')
                 if custom_fields[0].get('type') == 'date':
-                    await message.answer('Ожидается дата формата: день-месяц-год [31-12-2024]')
+                    await message.answer('Ожидается дата формата: \nдень-месяц-год [31-12-2024]')
                 keyboard_cf = keyboard_cf_if_need(custom_fields[0])
                 ticket_data['current_cf_name'] = next_stage
                 ticket_data['current_cf_i'] = 0
@@ -161,15 +164,18 @@ async def handle_ticket_custom_fields(message: types.Message, state: FSMContext)
             keyboard_cf = None
             if custom_fields:
                 current_i = ticket_data.get('current_cf_i')
+                is_req = custom_fields[current_i].get('req')
                 if custom_fields[current_i].get('type') == 'date':
-                    if not validate_date(message.text):
-                        await message.answer('Ожидается дата формата: день-месяц-год [31-12-2024]')
+                    if not is_req and message.text == '-':
+                        message.text = None
+                    elif not validate_date(message.text):
+                        await message.answer('Ожидается дата формата: \nдень-месяц-год [31-12-2024]\nНапишите минус "-", чтобы пропустить (если поле необязательно)')
                         return
                 custom_fields[current_i]['value'] = message.text
                 try:
                     next_stage = custom_fields[current_i+1].get('name')
                     if custom_fields[current_i+1].get('type') == 'date':
-                        message.answer('Ожидается дата формата: день-месяц-год [31-12-2024]')
+                        await message.answer('Ожидается дата формата: \nдень-месяц-год [31-12-2024]')
                     ticket_data['current_cf_name'] = next_stage
                     ticket_data['current_cf_i'] = current_i+1
                     keyboard_cf = keyboard_cf_if_need(custom_fields[current_i+1])
@@ -301,7 +307,7 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
             await c.answer("Операция выполнена")
             await api.ticket_create(ticket)
             return
-        case "get", "reload":
+        case "get" | "reload":
             trackid = data[-1]
             ticket = api.ticket_get_by_trackid(trackid)
             if not ticket:
@@ -311,23 +317,26 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 ticket.get('category')
             )
             ticket['custom_fields'] = custom_fields_ticket
-            await c.message.edit_text(
-                ticket2workflow2text(ticket),
-                parse_mode=html_mode,
-                reply_markup=ticket_actions(ticket.get('trackid'))
-            )
+            try:
+                await c.message.edit_text(
+                    ticket2workflow2text(ticket),
+                    parse_mode=html_mode,
+                    reply_markup=ticket_actions(ticket.get('trackid'))
+                )
+            except TelegramBadRequest as err:
+                log.warning(err)
         case "delete":
             # trackid = data[-1]
             # ticket = api.ticket_get_by_trackid(trackid)
             # if not ticket:
             #     await c.answer(f"Заявка {trackid} не найдена")
             #     return
-            c.message.answer("Удаление заявки пока что не реализовано")
+            await c.message.answer("Удаление заявки пока что не реализовано")
         case "close":
             # trackid = data[-1]
             # ticket = api.ticket_get_by_trackid(trackid)
             # if not ticket:
             #     await c.answer(f"Заявка {trackid} не найдена")
             #     return
-            c.message.answer("Закрытие заявки пока что не реализовано")
+            await c.message.answer("Закрытие заявки пока что не реализовано")
     await c.answer("Операция выполнена")
