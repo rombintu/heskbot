@@ -10,6 +10,8 @@ services:
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - REDIS_DATA_DIR=/root/redis
+    networks:
+      - my_net
   bot:
     build: .
     container_name: hesk_bot
@@ -17,3 +19,12 @@ services:
       - .env
     environment:
       - REDIS_HOST=redis
+    networks:
+      - my_net
+      - my_net_ext
+
+networks:
+  my_net:
+    driver: bridge
+  my_net_ext:
+    external: true
