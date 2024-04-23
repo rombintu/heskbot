@@ -3,12 +3,12 @@ import aioredis
 import aioredis.exceptions
 from tools.logger import logger as log
 from tools.utils import exist_or_none
-import json
+import os
 import pickle
 
 class Cache:
     def __init__(self):
-        self.driver = aioredis.Redis() # Connect to localhost
+        self.driver = aioredis.Redis(host=os.getenv('REDIS_HOST', 'localhost')) # Connect to localhost
     
     async def save(self, key: str, value: str, uuid: int = 0):
         log.debug(f"CACHE | SAVE [{key}] | [{value}]")
