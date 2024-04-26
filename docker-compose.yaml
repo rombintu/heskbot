@@ -5,26 +5,19 @@ services:
     image: redis:alpine
     container_name: hesk_bot_cache
     restart: always
+    ports:
+      - 127.0.0.1:6379:6379
     volumes:
       - /tmp/redis_dаta:/root/redis
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - REDIS_DATA_DIR=/root/redis
-    networks:
-      - my_net
+    network_mode: host
+
   bot:
     build: .
     container_name: hesk_bot
+    restart: always
     env_file:
       - .env
-    environment:
-      - REDIS_HOST=redis
-    networks:
-      - my_net
-      - my_net_ext
-
-networks:
-  my_net:
-    driver: bridge
-  my_net_ext:
-    external: true
+    network_mode: host

@@ -38,7 +38,17 @@ def validate_date(date_str: str):
         return True
     except ValueError:
         return False
-    
+
+def get_today():
+    return datetime.now().strftime("%d-%m-%Y")
+
+def if_type_is_date(row: dict):
+    value: str = row.get('value')
+    value = int(value) if value.isdigit() else None
+    if not value: return value
+    date = datetime.fromtimestamp(value)
+    return date.strftime("%d-%m-%Y")
+
 statuses = {
     0: "Новая",
     1: "Получен комментарий",

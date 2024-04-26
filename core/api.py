@@ -36,6 +36,7 @@ class Ticket:
     category: int
     custom_fields: dict # customX: value
 
+
 @dataclass
 class PostMessage:
     subject: str
@@ -51,12 +52,6 @@ class Client:
     username: str
 
 internal_error = {"error": "500. Повторите попытку позже"}
-
-class EnhancedJSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if is_dataclass(o):
-            return asdict(o)
-        return super().default(o)
 
 class API:
     headers = {"content-type": "application/json"}
@@ -136,7 +131,7 @@ class API:
     async def ticket_create(self, ticket: Ticket):
         log.debug(ticket)
         await self.async_post_request(api_paths["tickets"]["post"], ticket.__dict__)
-    
+
     def send_code(self, to_addr: str, code: int, subject="Регистрация пользователя в БКС_бот"):
         message = PostMessage(
             subject, to_addr, f"Ваш код для регистрации <b>{code}</b>", is_html=True

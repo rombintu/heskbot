@@ -1,6 +1,7 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder as ikbuilder
 from aiogram.utils.keyboard import ReplyKeyboardBuilder as rkbuilder
 # from aiogram.types import InlineKeyboardButton as btn
+from core.config import Config
 
 btns = {
     "profile": {
@@ -50,6 +51,9 @@ def ticket_actions(track_id: str):
         builder.button(
             text=ru, 
             callback_data=f"tickets_{action}_{track_id}")
+    builder.button(
+        text="Подробнее 🖥", url=f"{Config.web_url}/admin/admin_ticket.php?track={track_id}"
+    )
     builder.adjust(1, 2)
     return builder.as_markup()
 

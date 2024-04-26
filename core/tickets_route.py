@@ -10,7 +10,7 @@ from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_s
 from core.keyboards import ticket_actions
 from aiogram.exceptions import TelegramBadRequest
 # from aiogram.types.reply_keyboard_remove import ReplyKeyboardRemove
-from tools.utils import validate_date
+from tools.utils import validate_date, get_today, if_type_is_date
 
 router = Router()
 
@@ -51,6 +51,8 @@ def ticket2text(t: dict, stage=txt_subject, done=False):
         for cf in t.get('custom_fields'):
             # type_row = cf.get('type')
             value = cf.get("value") if cf.get("value") else is_selective(cf)
+            if cf.get('type') == 'date':
+                value = if_type_is_date(cf)
             custom_fields_data += f'''\n- {"<b>>" if stage==cf.get("name") else ""} {cf.get("name") }{"*️⃣" if cf.get("req") else ""}: {"</b>" if stage==cf.get("name") else ""} \
 <code>{value}</code>'''
     return f"""Статус заявки: {status}\
@@ -163,15 +165,16 @@ async def handle_ticket_custom_fields(message: types.Message, state: FSMContext)
             next_stage = None
             keyboard_cf = None
             if custom_fields:
+                message_text = message.text
                 current_i = ticket_data.get('current_cf_i')
                 is_req = custom_fields[current_i].get('req')
                 if custom_fields[current_i].get('type') == 'date':
                     if not is_req and message.text == '-':
-                        message.text = None
+                        message_text = get_today()
                     elif not validate_date(message.text):
                         await message.answer('Ожидается дата формата: \nдень-месяц-год [31-12-2024]\nНапишите минус "-", чтобы пропустить (если поле необязательно)')
                         return
-                custom_fields[current_i]['value'] = message.text
+                custom_fields[current_i]['value'] = message_text
                 try:
                     next_stage = custom_fields[current_i+1].get('name')
                     if custom_fields[current_i+1].get('type') == 'date':
@@ -312,11 +315,7 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
             ticket = api.ticket_get_by_trackid(trackid)
             if not ticket:
                 await c.answer(f"Заявка {trackid} не найдена")
-                return
-            custom_fields_ticket = await api.custom_fields_mapping_by_category_id(
-                ticket.get('category')
-            )
-            ticket['custom_fields'] = custom_fields_ticket
+                return            
             try:
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
