@@ -46,10 +46,10 @@ def check_client_isexist(func):
     return wrapper
 
 def check_client_isadmin(func):
-    async def wrapper(message: types.Message):
+    async def wrapper(message: types.Message, state: FSMContext):
         client = await api.client_get(message.chat.id)
         if client and client.get('isadmin'):
-            await func(message)
+            await func(message, state)
         else:
             await message.answer("Вы не являетесь администратором")
     return wrapper

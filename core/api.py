@@ -100,22 +100,22 @@ class API:
             log.error(errConn)
         return response
 
-    async def tickets_get_my_all(self, email: str):
+    def tickets_get_my_all(self, email: str, all_status = False):
         # tickets = await cache.get_dict(f"mytickets_{telegram_id}")
         # if reload or not tickets:
-        params = {'email': email}
+        params = {'email': email, 'all' : all_status}
         tickets = self.get_request(api_paths['tickets']['default'], params)
-        if not tickets:
+        if not tickets or type(tickets) != list:
             return []
             # await cache.save_dict(tickets, f"mytickets_{telegram_id}")
         return tickets
 
-    async def tickets_get_my_all_adm(self, email: str):
+    def tickets_get_my_all_adm(self, email: str):
         # tickets = await cache.get_dict(f"mytickets_{telegram_id}")
         # if reload or not tickets:
         params = {'admin_email': email}
         tickets = self.get_request(api_paths['tickets']['default'], params)
-        if not tickets:
+        if not tickets or type(tickets) != list:
             return []
             # await cache.save_dict(tickets, f"mytickets_{telegram_id}")
         return tickets

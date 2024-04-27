@@ -40,7 +40,7 @@ def tickets_list(tickets: list):
     builder = ikbuilder()
     for t in tickets:
         builder.button(
-            text=f"{t.get('trackid')} {t.get('category_name')}", 
+            text=f"{t.get('subject')}", 
             callback_data=f"tickets_get_{t.get('trackid')}")
     builder.adjust(1, 1)
     return builder.as_markup()

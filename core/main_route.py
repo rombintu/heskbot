@@ -3,7 +3,7 @@ from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
 
 from aiogram.fsm.storage.redis import RedisStorage
-from core.content import start_message, reg_start_message, markdownv2, html_mode, NOT_OK, OK
+from core.content import start_message, reg_start_message, html_mode, NOT_OK, OK
 # from core.keyboards import *
 from tools.logger import logger
 from core import tickets_route
@@ -82,7 +82,7 @@ async def handle_command_profile(message: types.Message, state: FSMContext):
 @dp.message(Command('reset_categories'))
 # @clients_route.check_client_isexist
 @clients_route.check_client_isadmin
-async def handle_command_reset_categories(message: types.Message):
+async def handle_command_reset_categories(message: types.Message, state: FSMContext):
     await cache.delete_dict("categories")
     async for key in cache.driver.scan_iter("custom_fields_mapping_*"):
         await cache.driver.delete(key)
@@ -93,7 +93,7 @@ async def handle_command_reset_categories(message: types.Message):
 # @clients_route.check_client_isadmin
 async def handle_command_get_my_tickets(message: types.Message):
     client_info = await api.client_get(message.chat.id)
-    tickets = await api.tickets_get_my_all(client_info.get('email'))
+    tickets = api.tickets_get_my_all(client_info.get('email'))
     if not tickets:
         await message.answer(f"Нет текущих заявок на вашу почту")
         return
@@ -102,10 +102,17 @@ async def handle_command_get_my_tickets(message: types.Message):
 @dp.message(Command('mylistadm'))
 # @clients_route.check_client_isexist
 @clients_route.check_client_isadmin
-async def handle_command_get_my_tickets_adm(message: types.Message):
+async def handle_command_get_my_tickets_adm(message: types.Message, state: FSMContext):
     client_info = await api.client_get(message.chat.id)
-    tickets = await api.tickets_get_my_all_adm(client_info.get('email'))
+    tickets = api.tickets_get_my_all_adm(client_info.get('email'))
     if not tickets:
         await message.answer(f"Нет текущих заявок на вашу почту")
         return
     await message.answer("Список заявок назначенных на меня:", reply_markup=tickets_list(tickets))
+
+
+@dp.message(Command('search'))
+@clients_route.check_client_isadmin
+async def handle_command_search_ticket(message: types.Message, state: FSMContext):
+    await state.set_state(tickets_route.FormSearchTicket.track_or_email)
+    await message.answer("Введите трек или почту заявителя, тикета который ищете\n/cancel - Отмена")

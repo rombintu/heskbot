@@ -1,5 +1,6 @@
 from tools.logger import logger as log
 from datetime import datetime
+from bs4 import BeautifulSoup as bs
 
 def str2bool(s: str):
     if s.lower() in ["true", "1"]:
@@ -44,16 +45,22 @@ def get_today():
 
 def if_type_is_date(row: dict):
     value: str = row.get('value')
+    if not value:
+        return '-'
     value = int(value) if value.isdigit() else None
     if not value: return value
     date = datetime.fromtimestamp(value)
     return date.strftime("%d-%m-%Y")
 
-statuses = {
-    0: "Новая",
-    1: "Получен комментарий",
-    2: "Комментарий отправлен",
-    3: "Решена",
-    4: "В работе",
-    5: "Приостановлена",
-}
+# statuses = {
+#     0: "Новая",
+#     1: "Получен комментарий",
+#     2: "Комментарий отправлен",
+#     3: "Решена",
+#     4: "В работе",
+#     5: "Приостановлена",
+# }
+
+def html2text(html_text: str):
+    soup = bs(html_text, 'html5lib')
+    return soup.get_text()

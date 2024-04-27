@@ -1,10 +1,11 @@
 from tools.logger import logger as log
-import json
+# import json
 from core.api import api
-from core.api import PostMessage, EnhancedJSONEncoder, api_paths
+from core.api import PostMessage, api_paths
 from core.cache import cache
 import pytest
 import asyncio
+from tools import utils 
 
 def test_encode_to_json():
     pm = PostMessage("test", "test", "test")
@@ -45,3 +46,30 @@ async def test_save_client_info():
 def test_client_reg():
     resp = api.client_registration(111, "admin@admin.com", "Ivan", None)
     log.debug(resp)
+
+def test_html2text():
+    html_text = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Example HTML Page</title>
+</head>
+<body>
+    <h1>Hello, World!</h1>
+    <p>This is an example paragraph.</p>
+    <p>Another paragraph with <a href="https://example.com">a link</a>.</p>
+</body>
+</html>
+"""
+    no_html_text = """
+    Example HTML Page
+
+Hello, World!
+This is an example paragraph.
+Another paragraph with a link.
+"""
+    html2text_right = utils.html2text(html_text)
+    html2text_left = utils.html2text(no_html_text)
+    log.debug(html2text_left)
+    log.debug(html2text_right)
+    

@@ -6,11 +6,11 @@ from core.cache import cache
 from core.api import api, Ticket
 from core import bot
 from tools.logger import logger as log
-from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_send
+from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_send, tickets_list
 from core.keyboards import ticket_actions
 from aiogram.exceptions import TelegramBadRequest
 # from aiogram.types.reply_keyboard_remove import ReplyKeyboardRemove
-from tools.utils import validate_date, get_today, if_type_is_date
+from tools.utils import validate_date, get_today, if_type_is_date, html2text
 
 router = Router()
 
@@ -20,6 +20,9 @@ class FormTicket(StatesGroup):
     subject = State()
     message = State()
     custom_fields = State()
+
+class FormSearchTicket(StatesGroup):
+    track_or_email = State()
 
 def options2text(row: dict, key: str):
     buff = ""
@@ -38,13 +41,19 @@ def is_selective(row: dict):
         case _:
             return "-"
 
+def to_body(html_or_text: str):
+    body: str = html2text(html_or_text)
+    if len(body) > 50:
+        body = body[:50] + "..."
+    return f'<code>{body}</code>'
+
 def ticket2text(t: dict, stage=txt_subject, done=False):
     status = '<em>Создание</em>' if not t.get('status') else f"<em>{t['status']}</em>"
     if done:
         status = '<em>Подтверждение</em>'
     if stage == 'end':
         status = '<em>Отправлена</em>'
-    body = '' if not t.get('message') else t['message'].split('<br')[0]
+    body = '' if not t.get('message') else to_body(t.get('message'))
     
     custom_fields_data = ""
     if t.get('custom_fields'):
@@ -55,9 +64,11 @@ def ticket2text(t: dict, stage=txt_subject, done=False):
                 value = if_type_is_date(cf)
             custom_fields_data += f'''\n- {"<b>>" if stage==cf.get("name") else ""} {cf.get("name") }{"*️⃣" if cf.get("req") else ""}: {"</b>" if stage==cf.get("name") else ""} \
 <code>{value}</code>'''
+    note = ''
+    if not done:
+        note = '\n*️⃣ - <em>Необходимо указать</em>\n⚠️ Используйте знак минус - для пропуска\n'
     return f"""Статус заявки: {status}\
-        \n*️⃣ - <em>Необходимо указать</em>\
-        \n⚠️ Используйте знак минус <b>-</b> для пропуска
+        {note}\
         \n <b>    --- Информация ---    </b> \
         \n👨‍💻 {t.get('name')} \
         \n📪 {t.get('email')} 🔗 {'Ссылка скрыта' if not t.get('username') else '@'+t.get('username')}\
@@ -68,7 +79,7 @@ def ticket2text(t: dict, stage=txt_subject, done=False):
         \n{'- Нет' if not custom_fields_data else custom_fields_data}"""
 
 def ticket2workflow2text(t: dict):
-    buff = ticket2text(t, stage=None, done=None)
+    buff = ticket2text(t, stage=None, done=True)
     buff += f"""\n\n<b>Рабочая информация</b>\
     \n🆔 <code>{t.get('trackid')}</code>\
     \n🛠 Исполнитель: {t.get('owner_name') if t.get('owner_name') else 'Не назначен'}\
@@ -211,6 +222,40 @@ async def handle_ticket_custom_fields(message: types.Message, state: FSMContext)
             if keyboard_cf:
                 await message.answer('Выберите опциональные поля', reply_markup=keyboard_cf)
             log.debug(f'DATA FROM STATE >> {await state.get_data()}')
+
+@router.message(FormSearchTicket.track_or_email)
+async def handle_ticket_search(message: types.Message, state: FSMContext):
+    # await state.clear()
+    match message.text:
+        case "/cancel":
+            await message.answer("Отмена поиска")
+            await state.clear()
+        case None:
+            await state.set_state(FormSearchTicket.track_or_email)
+            await message.answer("Ожидается трек или почта, тикета, который ищете\
+                                 \n/cancel - Отмена")
+        case _:
+            tickets = []
+            track_or_email: str = message.text
+            if "@" in track_or_email:
+                tickets = api.tickets_get_my_all(track_or_email, all_status=True)
+            else:
+                tickets.append(api.ticket_get_by_trackid(track_or_email))
+            if not tickets:
+                await message.answer('Ничего не найдено')
+            elif len(tickets) == 1:
+                ticket = tickets[0]
+                await message.answer(
+                    ticket2workflow2text(ticket),
+                    parse_mode=html_mode,
+                    reply_markup=ticket_actions(ticket.get('trackid'))
+                )
+            else:
+                await message.answer(
+                    "Список заявок:", 
+                    reply_markup=tickets_list(tickets)
+                )
+
 
 @router.callback_query(F.data.startswith(f"categories_"))
 async def categories_callbacks(c: types.CallbackQuery, state: FSMContext):
