@@ -64,3 +64,16 @@ def if_type_is_date(row: dict):
 def html2text(html_text: str):
     soup = bs(html_text, 'html5lib')
     return soup.get_text()
+
+def priorities(p: str):
+    priority = "🤷‍♂️ Неизвестный"
+    if p.isdigit():
+        p = int(p)
+        if 0 <= p <= 3:
+            priority = {
+                0: "🚨 Критический",
+                1: "🚀 Высокий",
+                2: "🏎 Нормальный",
+                3: "🦽 Низкий"
+            }.get(p)
+    return priority

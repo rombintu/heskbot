@@ -10,6 +10,8 @@ api_paths = {
     "tickets": {
         "default": "tickets",
         "post": "tickets",
+        "set_status": "tickets/{track_id}/status/{new_status}",
+        "replies": "tickets/{track_id}/replies"
     },
     "email": {
         "post": "email"
@@ -100,6 +102,16 @@ class API:
             log.error(errConn)
         return response
 
+    def put_request(self, path, params={}):
+        response = internal_error
+        try:
+            reps = requests.put(f"{self.url}/{path}", headers=self.headers, params=params)
+            log.debug(reps.url)
+            response = reps.json()
+        except requests.exceptions.ConnectionError as errConn:
+            log.error(errConn)
+        return response
+
     def tickets_get_my_all(self, email: str, all_status = False):
         # tickets = await cache.get_dict(f"mytickets_{telegram_id}")
         # if reload or not tickets:
@@ -119,6 +131,16 @@ class API:
             return []
             # await cache.save_dict(tickets, f"mytickets_{telegram_id}")
         return tickets
+    
+    def ticket_update_status(self, track_id: str, new_status = 3):
+        self.put_request(api_paths['tickets']['set_status'].format(
+            track_id=track_id, new_status=new_status))
+
+    def ticket_get_replies(self, track_id: str):
+        replies = self.get_request(api_paths["tickets"]["replies"].format(track_id=track_id))
+        if not replies or type(replies) != list:
+            return []
+        return replies
     
     def ticket_get_by_trackid(self, trackid: str):
         params = {'track': trackid}

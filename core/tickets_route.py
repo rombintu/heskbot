@@ -10,7 +10,7 @@ from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_s
 from core.keyboards import ticket_actions
 from aiogram.exceptions import TelegramBadRequest
 # from aiogram.types.reply_keyboard_remove import ReplyKeyboardRemove
-from tools.utils import validate_date, get_today, if_type_is_date, html2text
+from tools.utils import validate_date, get_today, if_type_is_date, html2text, priorities
 
 router = Router()
 
@@ -26,11 +26,13 @@ class FormSearchTicket(StatesGroup):
 
 def options2text(row: dict, key: str):
     buff = ""
+    if not row.get(key):
+        return row.get('value')
     for option in row.get(key):
         buff += f"\n    | {option}"
     return buff
 
-def is_selective(row: dict):
+def value_isxist(row: dict):
     match row.get('type'):
         case 'select':
             return options2text(row, 'select_options')
@@ -38,30 +40,30 @@ def is_selective(row: dict):
             return options2text(row, 'radio_options')
         case 'checkbox':
             return options2text(row, 'checkbox_options')
+        case 'date':
+            return if_type_is_date(row)
         case _:
-            return "-"
+            return row.get('value')
 
 def to_body(html_or_text: str):
     body: str = html2text(html_or_text)
-    if len(body) > 50:
-        body = body[:50] + "..."
+    if len(body) > 255:
+        body = body[:255] + "..."
     return f'<code>{body}</code>'
 
 def ticket2text(t: dict, stage=txt_subject, done=False):
-    status = '<em>Создание</em>' if not t.get('status') else f"<em>{t['status']}</em>"
+    status = '<em>Создание</em>'
     if done:
         status = '<em>Подтверждение</em>'
     if stage == 'end':
         status = '<em>Отправлена</em>'
+    status = status if not t.get('status') else f"<em>{t['status']}</em>"
     body = '' if not t.get('message') else to_body(t.get('message'))
     
     custom_fields_data = ""
     if t.get('custom_fields'):
         for cf in t.get('custom_fields'):
-            # type_row = cf.get('type')
-            value = cf.get("value") if cf.get("value") else is_selective(cf)
-            if cf.get('type') == 'date':
-                value = if_type_is_date(cf)
+            value = '-' if not cf.get("value") else value_isxist(cf)
             custom_fields_data += f'''\n- {"<b>>" if stage==cf.get("name") else ""} {cf.get("name") }{"*️⃣" if cf.get("req") else ""}: {"</b>" if stage==cf.get("name") else ""} \
 <code>{value}</code>'''
     note = ''
@@ -79,11 +81,21 @@ def ticket2text(t: dict, stage=txt_subject, done=False):
         \n{'- Нет' if not custom_fields_data else custom_fields_data}"""
 
 def ticket2workflow2text(t: dict):
+    replies_count = t.get('replies') | 0
+    replies = ""
+    if replies_count > 0:
+        replies_list = api.ticket_get_replies(t.get('trackid'))
+        if replies_list:
+            replies = "\n<b>    --- Диалог ---    </b>"
+            for r in replies_list:
+                replies += f"\n<em>{r.get('name')}</em>: {to_body(r.get('message'))}"
     buff = ticket2text(t, stage=None, done=True)
     buff += f"""\n\n<b>Рабочая информация</b>\
     \n🆔 <code>{t.get('trackid')}</code>\
     \n🛠 Исполнитель: {t.get('owner_name') if t.get('owner_name') else 'Не назначен'}\
-    \n💬 Ответов: {t.get('replies')}"""
+    \n{priorities(t.get('priority'))} приоритет\
+    \n💬 Ответов: {replies_count}"""
+    buff += replies
     return buff
 
 @router.message(FormTicket.subject)
@@ -369,18 +381,22 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
-        case "delete":
-            # trackid = data[-1]
-            # ticket = api.ticket_get_by_trackid(trackid)
-            # if not ticket:
-            #     await c.answer(f"Заявка {trackid} не найдена")
-            #     return
-            await c.message.answer("Удаление заявки пока что не реализовано")
+        case "hide":
+            await c.message.delete()
         case "close":
-            # trackid = data[-1]
-            # ticket = api.ticket_get_by_trackid(trackid)
-            # if not ticket:
-            #     await c.answer(f"Заявка {trackid} не найдена")
-            #     return
-            await c.message.answer("Закрытие заявки пока что не реализовано")
+            trackid = data[-1]
+            ticket = api.ticket_get_by_trackid(trackid)
+            if not ticket:
+                await c.answer(f"Заявка {trackid} не найдена")
+                return
+            api.ticket_update_status(data[-1])
+            ticket['status'] = 'Изменен (Выполните синхронизацию)'
+            try:
+                await c.message.edit_text(
+                    ticket2workflow2text(ticket),
+                    parse_mode=html_mode,
+                    reply_markup=ticket_actions(ticket.get('trackid'))
+                )
+            except TelegramBadRequest as err:
+                log.warning(err)
     await c.answer("Операция выполнена")
