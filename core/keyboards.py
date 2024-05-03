@@ -13,7 +13,7 @@ btns = {
         "reload": "Синхронизировать ⚙️",
         "hide": "Скрыть ❌",
         # "like": "👍",
-        "close": "Решена ✅",
+        "close": "Решена 📥",
     }
 }
 
@@ -45,9 +45,11 @@ def tickets_list(tickets: list):
     builder.adjust(1, 1)
     return builder.as_markup()
 
-def ticket_actions(track_id: str):
+def ticket_actions(track_id: str, done=False):
     builder = ikbuilder()
     for action, ru in btns["ticket"].items():
+        if action == 'close' and done:
+            continue
         builder.button(
             text=ru, 
             callback_data=f"tickets_{action}_{track_id}")
@@ -111,3 +113,43 @@ def keyboard_cf_if_need(custom_field: dict):
         case _:
             return None
     return custom_fields_select_kb(end_values)
+
+def kb_categories_list(
+        kb_list: list[dict], 
+        kb_art_list: list[dict], 
+        isadmin=False, 
+        position=1,
+    ):
+    builder = ikbuilder()
+    skip = []
+    if kb_list:
+        for cat in kb_list:
+            if (cat.get('type') == '1' and not isadmin) or cat.get('parent') != position:
+                skip.append(cat)
+                continue
+            articles = cat.get('articles') + cat.get('articles_private')
+            builder.button(
+                text=f"📁 {cat.get('name')} [Статей {articles}] {'🔐' if cat.get('type') == '1' else ''}",
+                callback_data=f"kb_list_{cat.get('id')}"
+            )
+    if kb_art_list:
+        for art in kb_art_list:
+            if art.get('catid') == position:
+                builder.button(
+                    text=f"Статья: {art.get('subject')} {'🔐' if art.get('type') == '1' else ''}",
+                    callback_data=f"kb_read_{art.get('id')}"
+                )
+    if position != 1:
+        builder.button(
+            text="⬅️ В начало",
+            callback_data=f"kb_list_1"
+        )
+    else:
+        builder.button(
+            text="Синхронизировать ⚙️",
+            callback_data=f"kb_reload"
+        )
+    builder.adjust(1, 1)
+    # builder.adjust(2, 2)
+    return builder.as_markup()
+

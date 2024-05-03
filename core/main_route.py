@@ -8,28 +8,32 @@ from core.content import start_message, reg_start_message, html_mode, NOT_OK, OK
 from tools.logger import logger
 from core import tickets_route
 from core import clients_route
+from core import kb_route
 from core.api import api
 from core.bot import bot
 from core.cache import cache
-from core.keyboards import client_reload_info, categories_list, tickets_list
+from core.keyboards import client_reload_info, categories_list, tickets_list, kb_categories_list
 from dotenv import load_dotenv
 load_dotenv()
 
 dp = Dispatcher(storage=RedisStorage(redis=cache.driver))
 dp.include_router(tickets_route.router)
 dp.include_router(clients_route.router)
+dp.include_router(kb_route.router)
 
 
 async def setup_bot_commands():
     bot_commands = [
         types.BotCommand(command="/start", description="Активация бота, помощь"),
         types.BotCommand(command="/profile", description="Регистрация, личный кабинет"),
-        types.BotCommand(command="/ticket", description="Создать новый тикет"),
+        # types.BotCommand(command="/ticket", description="Создать новый тикет"),
+        types.BotCommand(command="/knowledgebase", description="База знаний, меню"),
         types.BotCommand(command="/mylist", description="Получить мои заявки (как Клиента)"),
         types.BotCommand(command="/mylistadm", description="Получить мои заявки. Администратор"),
         types.BotCommand(command="/search", description="Поиск тикета по треку или почте. Администратор"),
         types.BotCommand(command="/reset_categories", description="Очистка кеша (Категории). Администратор"),
         types.BotCommand(command="/reset_clients", description="Очистка кеша (Клиенты). Администратор"),
+        types.BotCommand(command="/reset_knowledgebase", description="Очистка кеша (База знаний). Администратор"),        
     ]
     await bot.set_my_commands(bot_commands)
 
@@ -80,11 +84,17 @@ async def handle_command_profile(message: types.Message, state: FSMContext):
             reply_markup=client_reload_info(message.chat.id))
         
 @dp.message(Command('reset_categories'))
-# @clients_route.check_client_isexist
 @clients_route.check_client_isadmin
 async def handle_command_reset_categories(message: types.Message, state: FSMContext):
     await cache.delete_dict("categories")
     async for key in cache.driver.scan_iter("custom_fields_mapping_*"):
+        await cache.driver.delete(key)
+    await message.answer("Операция выполнена")
+
+@dp.message(Command('reset_knowledgebase'))
+@clients_route.check_client_isadmin
+async def handle_command_reset_categories(message: types.Message, state: FSMContext):
+    async for key in cache.driver.scan_iter("kb_articles_*"):
         await cache.driver.delete(key)
     await message.answer("Операция выполнена")
 
@@ -116,3 +126,18 @@ async def handle_command_get_my_tickets_adm(message: types.Message, state: FSMCo
 async def handle_command_search_ticket(message: types.Message, state: FSMContext):
     await state.set_state(tickets_route.FormSearchTicket.track_or_email)
     await message.answer("Введите трек или почту заявителя, тикета который ищете\n/cancel - Отмена")
+
+@dp.message(Command('knowledgebase'))
+@clients_route.check_client_isexist
+async def handle_command_knowledgebase(message: types.Message):
+    client_info = await api.client_get(message.chat.id)
+    isadmin = client_info.get('isadmin')
+    kb_categories = await api.kb_categories_get()
+    kb_articles = await api.kb_articles_get()
+    if not kb_categories:
+        await message.answer('База знаний пока пуста')
+    else:
+        await message.answer(
+            '🗄 База знаний:', 
+            reply_markup=kb_categories_list(kb_categories, kb_articles, isadmin),
+            )

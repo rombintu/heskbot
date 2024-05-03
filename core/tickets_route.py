@@ -10,7 +10,7 @@ from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_s
 from core.keyboards import ticket_actions
 from aiogram.exceptions import TelegramBadRequest
 # from aiogram.types.reply_keyboard_remove import ReplyKeyboardRemove
-from tools.utils import validate_date, get_today, if_type_is_date, html2text, priorities
+from tools.utils import validate_date, get_today, if_type_is_date, to_body, priorities
 
 router = Router()
 
@@ -45,11 +45,11 @@ def value_isxist(row: dict):
         case _:
             return row.get('value')
 
-def to_body(html_or_text: str):
-    body: str = html2text(html_or_text)
-    if len(body) > 255:
-        body = body[:255] + "..."
-    return f'<code>{body}</code>'
+# def to_body(html_or_text: str):
+#     body: str = html2text(html_or_text)
+#     if len(body) > 255:
+#         body = body[:255] + "..."
+#     return f'<code>{body}</code>'
 
 def ticket2text(t: dict, stage=txt_subject, done=False):
     status = '<em>Создание</em>'
@@ -247,6 +247,7 @@ async def handle_ticket_search(message: types.Message, state: FSMContext):
             await message.answer("Ожидается трек или почта, тикета, который ищете\
                                  \n/cancel - Отмена")
         case _:
+            await state.clear()
             tickets = []
             track_or_email: str = message.text
             if "@" in track_or_email:
@@ -374,10 +375,11 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 await c.answer(f"Заявка {trackid} не найдена")
                 return            
             try:
+                done = True if ticket.get('status') == 'Решена' else False
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'))
+                    reply_markup=ticket_actions(ticket.get('trackid'), done=done)
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
@@ -395,7 +397,7 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'))
+                    reply_markup=ticket_actions(ticket.get('trackid'), done=True)
                 )
             except TelegramBadRequest as err:
                 log.warning(err)

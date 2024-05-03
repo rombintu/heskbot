@@ -25,6 +25,10 @@ api_paths = {
     "categories": {
         "get": "categories",
         "custom_fields_mapping": "custom_fields/mapping/{category_id}"
+    },
+    "kb": {
+        "categories_get": "kb/categories",
+        "articles_get": "kb/articles"
     }
 }
 
@@ -246,5 +250,36 @@ class API:
             await cache.save_dict(custom_fields, f"custom_fields_mapping_{category_id}")
             return custom_fields
         return []
+    
+    async def kb_categories_get(self, reload=False):
+        kb_categories = await cache.get_dict("kb_categories")
+        if kb_categories and not reload:
+            return kb_categories
+        response = self.get_request(api_paths["kb"]["categories_get"])
+        if not response or type(response) != list:
+            return []
+        await cache.save_dict(response, "kb_categories")
+        return response
+    
+    async def kb_articles_get(self, reload=False):
+        kb_articles = await cache.get_dict("kb_articles")
+        if kb_articles and not reload:
+            return kb_articles
+        response = self.get_request(api_paths["kb"]["articles_get"])
+        if not response or type(response) != list:
+            return []
+        await cache.save_dict(response, "kb_articles")
+        return response
+    
+    async def kb_article_get_content(self, article_id: int, reload=False) -> dict:
+        article = await cache.get_dict(f"kb_articles_{article_id}")
+        if article and not reload:
+            return article
+        params = {"artid": article_id}
+        response = self.get_request(api_paths["kb"]["articles_get"], params=params)
+        if not response or type(response) != dict:
+            return {}
+        await cache.save_dict(response, f"kb_articles_{article_id}")
+        return response
 
 api = API(Config.api_url)
