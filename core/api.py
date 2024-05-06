@@ -11,6 +11,7 @@ api_paths = {
         "default": "tickets",
         "post": "tickets",
         "set_status": "tickets/{track_id}/status/{new_status}",
+        "set_owner": "tickets/{track_id}/owner/{new_owner_id}",
         "replies": "tickets/{track_id}/replies"
     },
     "email": {
@@ -21,6 +22,9 @@ api_paths = {
         "post": "clients/create",
         "delete": "clients/{telegram_id}",
         "reload": "clients/reload/{telegram_id}"
+    },
+    "admins": {
+        "get": "users",
     },
     "categories": {
         "get": "categories",
@@ -139,6 +143,10 @@ class API:
     def ticket_update_status(self, track_id: str, new_status = 3):
         self.put_request(api_paths['tickets']['set_status'].format(
             track_id=track_id, new_status=new_status))
+        
+    def ticket_update_owner(self, track_id: str, new_owner_id: int):
+        self.put_request(api_paths['tickets']['set_owner'].format(
+            track_id=track_id, new_owner_id=new_owner_id))
 
     def ticket_get_replies(self, track_id: str):
         replies = self.get_request(api_paths["tickets"]["replies"].format(track_id=track_id))
@@ -280,6 +288,16 @@ class API:
         if not response or type(response) != dict:
             return {}
         await cache.save_dict(response, f"kb_articles_{article_id}")
+        return response
+
+    async def admins_get(self, reload=False):
+        admins_list = await cache.get_dict("admins_list")
+        if admins_list and not reload:
+            return admins_list
+        response = self.get_request(api_paths["admins"]["get"])
+        if not response or type(response) != list:
+            return []
+        await cache.save_dict(response, "admins_list")
         return response
 
 api = API(Config.api_url)

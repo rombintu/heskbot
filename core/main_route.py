@@ -49,23 +49,23 @@ async def handle_message_start(message: types.Message):
         parse_mode=html_mode
     )
 
-# Создание новой заявки
-@dp.message(Command('new', 'create', 'ticket'))
-@clients_route.check_client_isexist
-async def handle_command_new(message: types.Message):
-    # await state.set_state(tickets.FormTicket.name)
-    client_info = await api.client_get(message.chat.id)
-    if not client_info:
-        message.answer("Не удалось получить категории")
-        return
-    isadmin = client_info.get('isadmin')
-    filtered_categories = await api.categories_get(isadmin)
-    if not filtered_categories:
-        message.answer("Не удалось получить категории")
-        return 
-    await message.answer(
-        "Выберите нужную категорию:", 
-        reply_markup=categories_list(filtered_categories))
+# # Создание новой заявки
+# @dp.message(Command('new', 'create', 'ticket'))
+# @clients_route.check_client_isexist
+# async def handle_command_new(message: types.Message):
+#     # await state.set_state(tickets.FormTicket.name)
+#     client_info = await api.client_get(message.chat.id)
+#     if not client_info:
+#         message.answer("Не удалось получить категории")
+#         return
+#     isadmin = client_info.get('isadmin')
+#     filtered_categories = await api.categories_get(isadmin)
+#     if not filtered_categories:
+#         message.answer("Не удалось получить категории")
+#         return 
+#     await message.answer(
+#         "Выберите нужную категорию:", 
+#         reply_markup=categories_list(filtered_categories))
 
 # Регистрация пользователя
 @dp.message(Command('reg', 'registration', 'profile'))

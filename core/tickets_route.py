@@ -7,7 +7,7 @@ from core.api import api, Ticket
 from core import bot
 from tools.logger import logger as log
 from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_send, tickets_list
-from core.keyboards import ticket_actions
+from core.keyboards import ticket_actions, admins_list
 from aiogram.exceptions import TelegramBadRequest
 # from aiogram.types.reply_keyboard_remove import ReplyKeyboardRemove
 from tools.utils import validate_date, get_today, if_type_is_date, to_body, priorities
@@ -88,7 +88,7 @@ def ticket2workflow2text(t: dict):
         if replies_list:
             replies = "\n<b>    --- Диалог ---    </b>"
             for r in replies_list:
-                replies += f"\n<em>{r.get('name')}</em>: {to_body(r.get('message'))}"
+                replies += f"\n<em>{r.get('name')}</em>: {to_body(r.get('message'), 516)}"
     buff = ticket2text(t, stage=None, done=True)
     buff += f"""\n\n<b>Рабочая информация</b>\
     \n🆔 <code>{t.get('trackid')}</code>\
@@ -331,7 +331,15 @@ async def categories_callbacks(c: types.CallbackQuery, state: FSMContext):
             return
     return
 
-
+def skip_actions_by_status(status: str):
+    match status:
+        case 'Решена':
+            return ['inprogress', 'close', 'assigned']
+        case 'В работе':
+            return ['inprogress', 'open']
+        case _:
+            return ['open']
+        
 @router.callback_query(F.data.startswith(f"tickets_"))
 async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
     await state.clear()
@@ -375,30 +383,72 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 await c.answer(f"Заявка {trackid} не найдена")
                 return            
             try:
-                done = True if ticket.get('status') == 'Решена' else False
+                skip_actions = skip_actions_by_status(ticket.get('status'))
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'), done=done)
+                    reply_markup=ticket_actions(ticket.get('trackid'), skip_actions)
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
         case "hide":
             await c.message.delete()
-        case "close":
+        case "assigned":
             trackid = data[-1]
+            ticket = api.ticket_get_by_trackid(trackid)
+            admins = await api.admins_get()
+            try:
+                await c.message.edit_text(
+                    ticket2workflow2text(ticket),
+                    parse_mode=html_mode,
+                    reply_markup=admins_list(admins, trackid)
+                )
+            except TelegramBadRequest as err:
+                log.warning(err)
+        case "assignedch":
+            trackid = data[-1]
+            on_change_id = data[-2]
+            if on_change_id.isdigit():
+                api.ticket_update_owner(trackid, on_change_id)
+            ticket = api.ticket_get_by_trackid(trackid)
+            try:
+                skip_actions = skip_actions_by_status(ticket.get('status'))
+                await c.message.edit_text(
+                    ticket2workflow2text(ticket),
+                    parse_mode=html_mode,
+                    reply_markup=ticket_actions(ticket.get('trackid'), skip_actions=skip_actions)
+                )
+            except TelegramBadRequest as err:
+                log.warning(err)
+        case "close" | "open" | "inprogress":
+            trackid = data[-1]
+            new_status = 3
+            skip_actions = ['open', 'assigned']
+            if action == 'inprogress': 
+                new_status = 4
+                skip_actions.append('inprogress')
+            elif action == 'open': 
+                new_status = 0
             ticket = api.ticket_get_by_trackid(trackid)
             if not ticket:
                 await c.answer(f"Заявка {trackid} не найдена")
                 return
-            api.ticket_update_status(data[-1])
+            api.ticket_update_status(data[-1], new_status=new_status)
             ticket['status'] = 'Изменен (Выполните синхронизацию)'
             try:
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'), done=True)
+                    reply_markup=ticket_actions(ticket.get('trackid'), skip_actions=skip_actions)
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
+        case "text":
+            trackid = data[-1]
+            ticket = api.ticket_get_by_trackid(trackid)
+            if not ticket:
+                await c.answer(f"Заявка {trackid} не найдена")
+                return
+            await c.message.answer(
+                to_body(ticket.get('message'), max_len=4090, html=False), parse_mode=html_mode)
     await c.answer("Операция выполнена")

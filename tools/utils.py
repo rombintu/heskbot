@@ -65,11 +65,14 @@ def html2text(html_text: str):
     soup = bs(html_text, 'html5lib')
     return soup.get_text()
 
-def to_body(html_or_text: str, max_len=255):
+def to_body(html_or_text: str, max_len=255, html=True):
     body: str = html2text(html_or_text)
     if len(body) > max_len:
         body = body[:max_len] + "..."
-    return f'<code>{body}</code>'
+    if html:
+        return f'<code>{body}</code>'
+    else:
+        return body
 
 def priorities(p: str):
     priority = "🤷‍♂️ Неизвестный"

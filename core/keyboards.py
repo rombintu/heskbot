@@ -11,9 +11,13 @@ btns = {
     "ticket": {
         # "back": "⬅️ Назад", 
         "reload": "Синхронизировать ⚙️",
-        "hide": "Скрыть ❌",
         # "like": "👍",
-        "close": "Решена 📥",
+        "close": "Решена 👌",
+        "inprogress": "Принять в работу 🫡",
+        "open": "Открыть 📤",
+        "hide": "Скрыть ❌",
+        "assigned": "Назначить 👨‍🔧",
+        "text": "Весь текст 📝",
     }
 }
 
@@ -45,14 +49,33 @@ def tickets_list(tickets: list):
     builder.adjust(1, 1)
     return builder.as_markup()
 
-def ticket_actions(track_id: str, done=False):
+def admins_list(admins_list: list, track_id: str):
+    builder = ikbuilder()
+    for a in admins_list:
+        if a.get('name') == "Admin":
+            continue
+        builder.button(
+            text=f"{a.get('name')}", 
+            callback_data=f"tickets_assignedch_{a.get('id')}_{track_id}")
+    builder.button(
+        text="↩️ Отмена", 
+        callback_data=f"tickets_get_{track_id}")
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
+def ticket_actions(track_id: str, skip_actions=['open']):
     builder = ikbuilder()
     for action, ru in btns["ticket"].items():
-        if action == 'close' and done:
+        if action in skip_actions:
             continue
         builder.button(
             text=ru, 
             callback_data=f"tickets_{action}_{track_id}")
+    # if done:
+    #     builder.button(
+    #             text="Открыть 📤", 
+    #             callback_data=f"tickets_open_{track_id}"
+    #         )
     builder.button(
         text="Подробнее 🖥", url=f"{Config.web_url}/admin/admin_ticket.php?track={track_id}"
     )
