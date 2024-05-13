@@ -24,6 +24,9 @@ class FormTicket(StatesGroup):
 class FormSearchTicket(StatesGroup):
     track_or_email = State()
 
+class FormNote(StatesGroup):
+    ticket_id = State()            
+
 def options2text(row: dict, key: str):
     buff = ""
     if not row.get(key):
@@ -89,14 +92,32 @@ def ticket2workflow2text(t: dict):
             replies = "\n<b>    --- Диалог ---    </b>"
             for r in replies_list:
                 replies += f"\n<em>{r.get('name')}</em>: {to_body(r.get('message'), 516)}"
+    
     buff = ticket2text(t, stage=None, done=True)
     buff += f"""\n\n<b>Рабочая информация</b>\
     \n🆔 <code>{t.get('trackid')}</code>\
     \n🛠 Исполнитель: {t.get('owner_name') if t.get('owner_name') else 'Не назначен'}\
-    \n{priorities(t.get('priority'))} приоритет\
-    \n💬 Ответов: {replies_count}"""
+    \n{priorities(t.get('priority'))} приоритет"""
+    if t.get('notes'):
+        buff += "\n\n<b>Примечания:</b>"
+        for note in t.get('notes'):
+            buff += f"\n<em>{note.get('name')}</em>: {note.get('message')}"
+    buff += f"\n💬 Ответов: {replies_count}"
     buff += replies
+    
     return buff
+
+@router.message(FormNote.ticket_id)
+async def handle_note_message(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    await state.clear()
+    match message.text:
+        case "/cancel":
+            await message.answer("Отмена добавления примечания")
+        case _:
+            message_note = message.text
+            api.notes_add(data.get('ticket_id'), message_note)
+            await message.answer("Примечание было добавлено")
 
 @router.message(FormTicket.subject)
 async def handle_ticket_subject(message: types.Message, state: FSMContext):
@@ -450,5 +471,25 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 await c.answer(f"Заявка {trackid} не найдена")
                 return
             await c.message.answer(
-                to_body(ticket.get('message'), max_len=4090, html=False), parse_mode=html_mode)
+                f"<code>{ticket.get('trackid')}</code>: {to_body(ticket.get('message'), max_len=4090, html=False)}", 
+                parse_mode=html_mode)
+        case "addnote":
+            trackid = data[-1]
+            ticket = api.ticket_get_by_trackid(trackid)
+            if not ticket:
+                await c.answer(f"Заявка {trackid} не найдена")
+                return
+            await c.message.answer("Введите примечание [Admin]:\n/cancel - Отмена")
+            await state.update_data(ticket_id=ticket.get('id'))
+            await state.set_state(FormNote.ticket_id)
+            ticket['status'] = 'Изменен (Выполните синхронизацию)'
+            try:
+                await c.message.edit_text(
+                    ticket2workflow2text(ticket),
+                    parse_mode=html_mode,
+                    reply_markup=ticket_actions(ticket.get('trackid'))
+                )
+            except TelegramBadRequest as err:
+                log.warning(err)
+
     await c.answer("Операция выполнена")

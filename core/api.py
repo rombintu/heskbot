@@ -33,6 +33,10 @@ api_paths = {
     "kb": {
         "categories_get": "kb/categories",
         "articles_get": "kb/articles"
+    },
+    "notes": {
+        "get": "notes/{ticket_id}",
+        "post": "notes/{ticket_id}"
     }
 }
 
@@ -299,5 +303,17 @@ class API:
             return []
         await cache.save_dict(response, "admins_list")
         return response
+    
+    def notes_get(self, ticket_id: int):
+        response = self.get_request(api_paths["notes"]["get"].format(ticket_id))
+        if not response or type(response) != list:
+            return []
+        return response
+    
+    def notes_add(self, ticket_id: int, message: str):
+        data = {
+            "message": message
+        }
+        self.post_request(api_paths["notes"]["post"].format(ticket_id=ticket_id), data=data)
 
 api = API(Config.api_url)
