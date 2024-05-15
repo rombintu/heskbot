@@ -66,9 +66,13 @@ def html2text(html_text: str):
     return soup.get_text()
 
 def to_body(html_or_text: str, max_len=255, html=True):
+    warning_symbols = ['<', '>']
     body: str = html2text(html_or_text)
     if len(body) > max_len:
         body = body[:max_len] + "..."
+    for s in warning_symbols:
+        if s in body:
+            body = body.replace(s, '🔸')
     if html:
         return f'<code>{body}</code>'
     else:

@@ -64,6 +64,20 @@ def admins_list(admins_list: list, track_id: str):
     builder.adjust(1, 1)
     return builder.as_markup()
 
+def stats_admins_list(admins_list: list, skip_admin_id=1):
+    builder = ikbuilder()
+    for a in admins_list:
+        if a.get('id') == skip_admin_id:
+            continue
+        builder.button(
+            text=f"{a.get('name')}", 
+            callback_data=f"stats_get_{a.get('id')}")
+    builder.button(
+        text="Синхронизировать ⚙️", 
+        callback_data=f"stats_reload")
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
 def ticket_actions(track_id: str, skip_actions=['open']):
     builder = ikbuilder()
     for action, ru in btns["ticket"].items():

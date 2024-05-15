@@ -8,11 +8,12 @@ from core.content import start_message, reg_start_message, html_mode, NOT_OK, OK
 from tools.logger import logger
 from core import tickets_route
 from core import clients_route
+from core import stats_route
 from core import kb_route
 from core.api import api
 from core.bot import bot
 from core.cache import cache
-from core.keyboards import client_reload_info, categories_list, tickets_list, kb_categories_list
+from core.keyboards import client_reload_info, stats_admins_list, tickets_list, kb_categories_list
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -20,6 +21,7 @@ dp = Dispatcher(storage=RedisStorage(redis=cache.driver))
 dp.include_router(tickets_route.router)
 dp.include_router(clients_route.router)
 dp.include_router(kb_route.router)
+dp.include_router(stats_route.router)
 
 
 async def setup_bot_commands():
@@ -29,6 +31,7 @@ async def setup_bot_commands():
         # types.BotCommand(command="/ticket", description="Создать новый тикет"),
         types.BotCommand(command="/knowledgebase", description="База знаний, меню"),
         types.BotCommand(command="/mylist", description="Получить мои заявки (как Клиента)"),
+        types.BotCommand(command="/stats", description="Статистика. Администратор"),
         types.BotCommand(command="/mylistadm", description="Получить мои заявки. Администратор"),
         types.BotCommand(command="/search", description="Поиск тикета по треку или почте. Администратор"),
         types.BotCommand(command="/reset_categories", description="Очистка кеша (Категории). Администратор"),
@@ -126,6 +129,16 @@ async def handle_command_get_my_tickets_adm(message: types.Message, state: FSMCo
 async def handle_command_search_ticket(message: types.Message, state: FSMContext):
     await state.set_state(tickets_route.FormSearchTicket.track_or_email)
     await message.answer("Введите трек или почту заявителя, тикета который ищете\n/cancel - Отмена")
+
+@dp.message(Command('stats'))
+@clients_route.check_client_isadmin
+async def handle_command_stats(message: types.Message, state: FSMContext):
+    admins_list = await api.admins_get()
+    if not admins_list:
+        await message.answer('Исполнители не найдены, попробуйте позже')
+        return
+    await message.answer("Статистика исполнителей:", reply_markup=stats_admins_list(admins_list))
+
 
 @dp.message(Command('knowledgebase'))
 @clients_route.check_client_isexist

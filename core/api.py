@@ -12,7 +12,8 @@ api_paths = {
         "post": "tickets",
         "set_status": "tickets/{track_id}/status/{new_status}",
         "set_owner": "tickets/{track_id}/owner/{new_owner_id}",
-        "replies": "tickets/{track_id}/replies"
+        "replies": "tickets/{track_id}/replies",
+        "by_user_id": "tickets/user/{user_id}"
     },
     "email": {
         "post": "email"
@@ -124,6 +125,12 @@ class API:
             log.error(errConn)
         return response
 
+    def tickets_get_by_user_id(self, user_id: int):
+        tickets = self.get_request(api_paths["tickets"]["by_user_id"].format(user_id=user_id))
+        if not tickets or type(tickets) != list:
+            return []
+        return tickets
+    
     def tickets_get_my_all(self, email: str, all_status = False):
         # tickets = await cache.get_dict(f"mytickets_{telegram_id}")
         # if reload or not tickets:
