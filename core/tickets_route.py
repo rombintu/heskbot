@@ -9,7 +9,6 @@ from tools.logger import logger as log
 from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_send, tickets_list
 from core.keyboards import ticket_actions, admins_list
 from aiogram.exceptions import TelegramBadRequest
-# from aiogram.types.reply_keyboard_remove import ReplyKeyboardRemove
 from tools.utils import validate_date, get_today, if_type_is_date, to_body, priorities
 
 router = Router()
@@ -25,6 +24,7 @@ class FormSearchTicket(StatesGroup):
     track_or_email = State()
 
 class FormNote(StatesGroup):
+    email_from = State()
     ticket_id = State()            
 
 def options2text(row: dict, key: str):
@@ -116,7 +116,7 @@ async def handle_note_message(message: types.Message, state: FSMContext):
             await message.answer("Отмена добавления примечания")
         case _:
             message_note = message.text
-            api.notes_add(data.get('ticket_id'), message_note)
+            api.notes_add(data.get('ticket_id'), message_note, note_from=data.get('note_from'))
             await message.answer("Примечание было добавлено")
 
 @router.message(FormTicket.subject)
@@ -479,7 +479,9 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
             if not ticket:
                 await c.answer(f"Заявка {trackid} не найдена")
                 return
-            await c.message.answer("Введите примечание [Admin]:\n/cancel - Отмена")
+            client = await api.client_get(c.message.chat.id)
+            await c.message.answer(f"Введите примечание [от {client.get('name')}]:\n/cancel - Отмена")
+            await state.update_data(email_from=client.get('email'))
             await state.update_data(ticket_id=ticket.get('id'))
             await state.set_state(FormNote.ticket_id)
             ticket['status'] = 'Изменен (Выполните синхронизацию)'

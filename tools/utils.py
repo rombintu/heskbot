@@ -90,3 +90,27 @@ def priorities(p: str):
                 3: "🦽 Низкий"
             }.get(p)
     return priority
+
+def admins_mapping_workloaded(admins_list: list, admins_workloaded: list):
+    for a1 in admins_list:
+        found = False
+        for a2 in admins_workloaded:
+            if a1['id'] == a2['id']:
+                a1['inprogress'] = a2['inprogress']
+                found = True
+                break
+        if not found:
+            a1['inprogress'] = 0
+    return admins_list
+
+def admins_is_workloaded(value: int):
+    is_not_workloaded = "Свободен 😴"
+    if value == 0:
+        return is_not_workloaded
+    elif value in [1,2,3]:
+        return "Относительно свободен 😏"
+    elif value in [4,5]:
+        return "Загружен 🫡"
+    elif value > 5:
+        return "Очень загружен 💀"
+    return is_not_workloaded

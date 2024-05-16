@@ -70,7 +70,7 @@ def stats_admins_list(admins_list: list, skip_admin_id=1):
         if a.get('id') == skip_admin_id:
             continue
         builder.button(
-            text=f"{a.get('name')}", 
+            text=f"{a.get('name')} {'' if a.get('inprogress') else '🙋‍♂️'}", 
             callback_data=f"stats_get_{a.get('id')}")
     builder.button(
         text="Синхронизировать ⚙️", 

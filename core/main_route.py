@@ -13,6 +13,7 @@ from core import kb_route
 from core.api import api
 from core.bot import bot
 from core.cache import cache
+from tools import utils
 from core.keyboards import client_reload_info, stats_admins_list, tickets_list, kb_categories_list
 from dotenv import load_dotenv
 load_dotenv()
@@ -137,6 +138,8 @@ async def handle_command_stats(message: types.Message, state: FSMContext):
     if not admins_list:
         await message.answer('Исполнители не найдены, попробуйте позже')
         return
+    admins_workloaded = api.admins_get_workloaded()
+    admins_list = utils.admins_mapping_workloaded(admins_list, admins_workloaded)
     await message.answer("Статистика исполнителей:", reply_markup=stats_admins_list(admins_list))
 
 

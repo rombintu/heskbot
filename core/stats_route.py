@@ -1,12 +1,9 @@
-from aiogram.fsm.context import FSMContext
 from aiogram import Router, F, types
 from core.content import html_mode
-from core.cache import cache
-from core.api import api, Ticket
-from core import bot
+from core.api import api
 from tools.logger import logger as log
+from tools import utils
 from core.keyboards import stats_admins_list
-from core.keyboards import ticket_actions, admins_list
 from aiogram.exceptions import TelegramBadRequest
 
 router = Router()
@@ -41,6 +38,8 @@ async def stats_callbacks(c: types.CallbackQuery):
             if not admins_list:
                 await c.answer('Исполнители не найдены, попробуйте позже')
                 return
+            admins_workloaded = api.admins_get_workloaded()
+            admins_list = utils.admins_mapping_workloaded(admins_list, admins_workloaded)
             try:
                 await c.message.edit_reply_markup(reply_markup=stats_admins_list(admins_list))
             except TelegramBadRequest as err:
@@ -52,6 +51,11 @@ async def stats_callbacks(c: types.CallbackQuery):
             else:
                 admin_id = None
             admins_list = await api.admins_get()
+            if not admins_list:
+                await c.answer('Исполнители не найдены, попробуйте позже')
+                return
+            admins_workloaded = api.admins_get_workloaded()
+            admins_list = utils.admins_mapping_workloaded(admins_list, admins_workloaded)
             admin_info = get_admin_info(admins_list, admin_id)
             log.debug(admin_info)
             if not admins_list or not admin_info:
@@ -67,9 +71,10 @@ async def stats_callbacks(c: types.CallbackQuery):
                 )
                 return
             stat = filter_tickets(tickets_data)
-            message += f"♻️ Всего: <b>{stat['total']}</b> "
-            message += f"✅ Решено: <b>{stat['resolved']}</b> "
-            message += f"🛠 В работе: <b>{stat['inprogress']}</b> "
+            message += f"[♻️ <b>{stat['total']}</b>] "
+            message += f"[✅ <b>{stat['resolved']}</b>] "
+            message += f"[🛠 <b>{stat['inprogress']}</b>] "
+            message += f"\n{utils.admins_is_workloaded(stat['inprogress'])}"
             await c.message.edit_text(
                 message, 
                 reply_markup=stats_admins_list(admins_list, admin_id), 
