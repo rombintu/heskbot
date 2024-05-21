@@ -61,6 +61,15 @@ def if_type_is_date(row: dict):
 #     5: "Приостановлена",
 # }
 
+def parse_image_from_html(html_text: str):
+    soup = bs(html_text, 'html5lib')
+    images: list[str] = soup.findAll('img')
+    images_bytes = []
+    if images:
+        for image in images:
+            images_bytes.append(image['src'].replace('data:image/png;base64,', ''))
+    return images_bytes
+
 def html2text(html_text: str):
     soup = bs(html_text, 'html5lib')
     return soup.get_text()

@@ -12,14 +12,26 @@ def filter_tickets(tickets: list):
     filter_data = {
         "total": len(tickets),
         "resolved": 0,
-        "inprogress": 0
+        "inprogress": 0,
+        "tracks_inprogress": ""
     }
     for t in tickets:
         match t.get('status'):
+            case 0:
+                filter_data["tracks_inprogress"] += f"\n<code>{t.get('trackid')}</code>: Новая (Открыто)"
+            case 1:
+                filter_data["tracks_inprogress"] += f"\n<code>{t.get('trackid')}</code>: Получен комментарий"
+            case 2:
+                filter_data["tracks_inprogress"] += f"\n<code>{t.get('trackid')}</code>: Комментарий отправлен"
             case 3:
                 filter_data["resolved"] += 1
             case 4:
                 filter_data["inprogress"] += 1
+                filter_data["tracks_inprogress"] += f"\n<code>{t.get('trackid')}</code>: В работе 🛠"
+            case 5:
+                filter_data["tracks_inprogress"] += f"\n<code>{t.get('trackid')}</code>: Приостановлена"
+            case _:
+                filter_data["tracks_inprogress"] += f"\n<code>{t.get('trackid')}</code>: Неизвестный статус"
     return filter_data
 
 def get_admin_info(admins_list: list, search_admin_id: int):
@@ -64,7 +76,7 @@ async def stats_callbacks(c: types.CallbackQuery):
             tickets_data: dict = api.tickets_get_by_user_id(admin_id)
             message = f"<b>{admin_info.get('name')}</b>\n{admin_info.get('email')}\n"
             if not tickets_data:
-                message += "Ни одной заявки не найдено, обновите информацию"
+                message += "Ни одной заявки не найдено\nобновите информацию"
                 await c.message.edit_text(
                     message, reply_markup=stats_admins_list(admins_list, admin_id), 
                     parse_mode=html_mode
@@ -74,6 +86,7 @@ async def stats_callbacks(c: types.CallbackQuery):
             message += f"[♻️ <b>{stat['total']}</b>] "
             message += f"[✅ <b>{stat['resolved']}</b>] "
             message += f"[🛠 <b>{stat['inprogress']}</b>] "
+            message += stat["tracks_inprogress"]
             message += f"\n{utils.admins_is_workloaded(stat['inprogress'])}"
             await c.message.edit_text(
                 message, 

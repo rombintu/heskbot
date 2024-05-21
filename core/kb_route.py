@@ -1,9 +1,11 @@
+import base64
 from aiogram import Router, F, types
 from core.api import api
 from tools.logger import logger as log
 from core.keyboards import kb_categories_list 
 from aiogram.exceptions import TelegramBadRequest
-from tools.utils import to_body
+from tools.utils import to_body, parse_image_from_html
+from aiogram.utils.media_group import MediaGroupBuilder
 
 router = Router()
 
@@ -41,8 +43,24 @@ async def kb_callbacks(c: types.CallbackQuery):
                 await c.answer('Ошибка')
                 return
             article = await api.kb_article_get_content(article_id)
-            content = to_body(article.get('content'), 1024)
-            log.debug(content)
+            content = to_body(article.get('content'), 4090, False)
+            images: list[str] = parse_image_from_html(article.get('content'))
+            if images:
+                media_group = MediaGroupBuilder(caption=f"Файлы из статьи {article_id}")
+                for i, img in enumerate(images):
+                    b_img = None
+                    try:
+                        b_img = base64.b64decode(img)
+                    except Exception as err:
+                        log.error(err)
+                        continue
+
+                    media_group.add_photo(types.BufferedInputFile(
+                        file=b_img, filename=f'image{i}'
+                    ))
+                await c.message.answer_media_group(
+                    media=media_group.build()
+                    )
             await c.message.edit_text(
                 f"<b>{article.get('subject')}:</b>\n{content}", 
                 reply_markup=kb_categories_list(None, None, isadmin, position=0), 

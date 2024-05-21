@@ -470,8 +470,18 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
             if not ticket:
                 await c.answer(f"Заявка {trackid} не найдена")
                 return
+            replies_count = ticket.get('replies') | 0
+            replies = ""
+            if replies_count > 0:
+                replies_list = api.ticket_get_replies(ticket.get('trackid'))
+                if replies_list:
+                    replies = "\n<b>    --- Диалог ---    </b>"
+            for r in replies_list:
+                replies += f"\n<em>{r.get('name')}</em>: {to_body(r.get('message'), 2048)}"
+            message = to_body(ticket.get('message'), max_len=4090, html=False)
+            message += replies
             await c.message.answer(
-                f"<code>{ticket.get('trackid')}</code>: {to_body(ticket.get('message'), max_len=4090, html=False)}", 
+                f"<code>{ticket.get('trackid')}</code>: {message}", 
                 parse_mode=html_mode)
         case "addnote":
             trackid = data[-1]
