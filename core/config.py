@@ -7,3 +7,5 @@ class Config:
     api_url = os.getenv("API_URL")
     web_url = os.getenv("WEB_URL")
     valid_host_mail = os.getenv("VALID_HOST_MAIL")
+    
+

@@ -73,3 +73,8 @@ Another paragraph with a link.
     log.debug(html2text_left)
     log.debug(html2text_right)
     
+
+def test_save_file_from_ticket():
+    filename = 'kenguru.png'
+    data = api.attachments_get_data(filename)
+    log.debug(data)

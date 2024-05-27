@@ -18,7 +18,8 @@ btns = {
         "hide": "Скрыть ❌",
         "assigned": "Назначить 👨‍🔧",
         "text": "Весь текст 📝",
-        "addnote": "Добавить примечание 📌"
+        "addnote": "Добавить примечание 📌",
+        "attachments": "Вложения 💾"
     }
 }
 
@@ -76,6 +77,13 @@ def stats_admins_list(admins_list: list, skip_admin_id=1):
         text="Синхронизировать ⚙️", 
         callback_data=f"stats_reload")
     builder.adjust(1, 1)
+    return builder.as_markup()
+
+def ticket_url(track_id: str):
+    builder = ikbuilder()
+    builder.button(
+        text="Подробнее 🖥", url=f"{Config.web_url}/admin/admin_ticket.php?track={track_id}"
+    )
     return builder.as_markup()
 
 def ticket_actions(track_id: str, skip_actions=['open']):

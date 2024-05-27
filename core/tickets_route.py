@@ -1,12 +1,13 @@
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
+from aiogram.utils.media_group import MediaGroupBuilder
 from aiogram import Router, F, types
 from core.content import txt_message, txt_subject, html_mode
 from core.cache import cache
 from core.api import api, Ticket
 from core import bot
 from tools.logger import logger as log
-from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_send, tickets_list
+from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_send, tickets_list, ticket_url
 from core.keyboards import ticket_actions, admins_list
 from aiogram.exceptions import TelegramBadRequest
 from tools.utils import validate_date, get_today, if_type_is_date, to_body, priorities
@@ -84,7 +85,7 @@ def ticket2text(t: dict, stage=txt_subject, done=False):
         \n{'- Нет' if not custom_fields_data else custom_fields_data}"""
 
 def ticket2workflow2text(t: dict):
-    replies_count = t.get('replies') | 0
+    replies_count = t.get('replies') if t.get('replies') else 0
     replies = ""
     if replies_count > 0:
         replies_list = api.ticket_get_replies(t.get('trackid'))
@@ -97,12 +98,14 @@ def ticket2workflow2text(t: dict):
     buff += f"""\n\n<b>Рабочая информация</b>\
     \n🆔 <code>{t.get('trackid')}</code>\
     \n🛠 Исполнитель: {t.get('owner_name') if t.get('owner_name') else 'Не назначен'}\
-    \n{priorities(t.get('priority'))} приоритет"""
+    \n{priorities(t.get('priority'))} приоритет\
+    \n💾 Вложений: {0 if not t.get('attachments_info') else len(t.get('attachments_info'))}"""
+
     if t.get('notes'):
         buff += "\n\n<b>Примечания:</b>"
         for note in t.get('notes'):
             buff += f"\n<em>{note.get('name')}</em>: {note.get('message')}"
-    buff += f"\n💬 Ответов: {replies_count}"
+    buff += f" 💬 Ответов: {replies_count}"
     buff += replies
     
     return buff
@@ -402,7 +405,8 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
             ticket = api.ticket_get_by_trackid(trackid)
             if not ticket:
                 await c.answer(f"Заявка {trackid} не найдена")
-                return            
+                return
+            ticket['attachments_info'] = api.attachments_get_info(ticket.get('id'))
             try:
                 skip_actions = skip_actions_by_status(ticket.get('status'))
                 await c.message.edit_text(
@@ -429,9 +433,14 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
         case "assignedch":
             trackid = data[-1]
             on_change_id = data[-2]
+            user_info_new = None
             if on_change_id.isdigit():
-                api.ticket_update_owner(trackid, on_change_id)
+                user_info_new = api.ticket_update_owner(trackid, on_change_id)
             ticket = api.ticket_get_by_trackid(trackid)
+            if user_info_new:
+                await c.message.answer(f"Заявка: <code>{ticket.get('trackid')}</code>\
+                \nНазначена: {user_info_new.get('name')} 👨‍💻\n{'' if not user_info_new.get('username') else '@'+ user_info_new.get('username')}",
+                parse_mode=html_mode, reply_markup=ticket_url(ticket.get('trackid')))
             try:
                 skip_actions = skip_actions_by_status(ticket.get('status'))
                 await c.message.edit_text(
@@ -503,5 +512,25 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
-
+        case "attachments":
+            trackid = data[-1]
+            # ticket = api.ticket_get_by_trackid(trackid)
+            # if not ticket:
+            #     await c.answer(f"Заявка {trackid} не найдена")
+            #     return
+            attachments_info = api.attachments_get_info(trackid)
+            if not attachments_info:
+                await c.answer("Вложений не найдено")
+                return
+            # TODO
+            media_group = MediaGroupBuilder()
+            for att in attachments_info:
+                doc = None
+                try:
+                    doc = api.attachments_get_data(att.get('saved_name'))
+                except Exception as err:
+                    log.error(err)
+                    continue
+                media_group.add_document(media=doc.absolute(), caption=att.get('real_name'))
+            await c.message.answer_media_group(media=media_group.build())
     await c.answer("Операция выполнена")

@@ -1,9 +1,9 @@
-import requests, json
-from dataclasses import dataclass, is_dataclass, asdict
+import requests, json, pathlib
+from dataclasses import dataclass
 from core.config import Config
 from core.cache import cache
 from tools.logger import logger as log
-from tools.utils import is_client_info
+from tools.utils import is_client_info, file_get
 import aiohttp
 
 api_paths = {
@@ -38,6 +38,10 @@ api_paths = {
     "notes": {
         "get": "notes/{ticket_id}",
         "post": "notes/{ticket_id}"
+    },
+    "attachments": {
+        "info": "attachments/info/{ticket_id}",
+        "download": "attachments/download/{filepath_name}"
     }
 }
 
@@ -104,6 +108,21 @@ class API:
         except requests.exceptions.ConnectionError as errConn:
             log.error(errConn)
         return response
+    
+    def download_file(self, path, filename, params={}):
+        response = internal_error
+        try:
+            reps = requests.get(f"{self.url}/{path}", headers=self.headers, params=params, stream=True)
+            log.debug(reps.url)
+            filepath = pathlib.Path('./tmp').joinpath(filename)
+            with open(filepath, "wb") as stream:
+                for chunk in reps.iter_content(chunk_size=1024):
+                    if chunk:
+                        stream.write(chunk)
+            return filepath.absolute()
+        except requests.exceptions.ConnectionError as errConn:
+            log.error(errConn)
+        return response
         
     def delete_request(self, path):
         response = internal_error
@@ -156,7 +175,7 @@ class API:
             track_id=track_id, new_status=new_status))
         
     def ticket_update_owner(self, track_id: str, new_owner_id: int):
-        self.put_request(api_paths['tickets']['set_owner'].format(
+        return self.put_request(api_paths['tickets']['set_owner'].format(
             track_id=track_id, new_owner_id=new_owner_id))
 
     def ticket_get_replies(self, track_id: str):
@@ -331,4 +350,22 @@ class API:
         }
         self.post_request(api_paths["notes"]["post"].format(ticket_id=ticket_id), data=data)
 
+    def attachments_get_info(self, ticket_id: int | str):
+        response = self.get_request(api_paths["attachments"]["info"].format(ticket_id=ticket_id))
+        if not response or type(response) != list:
+            return []
+        return response
+    
+    def attachments_get_data(self, filepath_name: str):
+        file = file_get(filepath_name)
+        if file:
+            return file.absolute()
+        filepath = self.download_file(
+            api_paths["attachments"]["download"].format(filepath_name=filepath_name),
+            filename=filepath_name
+            )
+        if not filepath or type(filepath) != str:
+            return None
+        return filepath
+    
 api = API(Config.api_url)

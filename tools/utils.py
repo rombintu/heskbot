@@ -1,6 +1,15 @@
 from tools.logger import logger as log
 from datetime import datetime
 from bs4 import BeautifulSoup as bs
+from core.config import Config
+# from jinja2 import Environment, FileSystemLoader
+# import requests
+import ssl
+# from io import BytesIO
+from urllib import request
+import pathlib
+
+tmp_dir = pathlib.Path('./tmp')
 
 def str2bool(s: str):
     if s.lower() in ["true", "1"]:
@@ -61,6 +70,18 @@ def if_type_is_date(row: dict):
 #     5: "Приостановлена",
 # }
 
+def file_exist(filepath: pathlib.Path):
+    if filepath.exists() and filepath.is_file():
+        return True
+    return False
+
+def file_get(filename: str):
+    filepath = tmp_dir.joinpath(filename)
+    if file_exist(filepath):
+        return filepath
+    else:
+        return None 
+
 def parse_image_from_html(html_text: str):
     soup = bs(html_text, 'html5lib')
     images: list[str] = soup.findAll('img')
@@ -69,6 +90,20 @@ def parse_image_from_html(html_text: str):
         for image in images:
             images_bytes.append(image['src'].replace('data:image/png;base64,', ''))
     return images_bytes
+
+def parse_attachment_from_ticket_url(att_id: int, trackid: str):
+    self_signed_cert_context = ssl.create_default_context()
+    self_signed_cert_context.check_hostname = False
+    self_signed_cert_context.verify_mode = ssl.CERT_NONE
+    try:
+        log.debug(f"{Config.web_url}/download_attachment.php?att_id={att_id}&track={trackid}&token=pBXZrGpJrBzppPuuNkGDuwM.zXw5H1")
+        with request.urlopen(
+            f"{Config.web_url}/download_attachment.php?att_id={att_id}&track={trackid}",
+            context=self_signed_cert_context) as f:
+            return f.read()
+    except Exception as err:
+        log.error(err)
+    return None
 
 def html2text(html_text: str):
     soup = bs(html_text, 'html5lib')
@@ -89,7 +124,7 @@ def to_body(html_or_text: str, max_len=255, html=True):
 
 def priorities(p: str):
     priority = "🤷‍♂️ Неизвестный"
-    if p.isdigit():
+    if p and p.isdigit():
         p = int(p)
         if 0 <= p <= 3:
             priority = {
