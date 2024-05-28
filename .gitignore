@@ -1,5 +1,7 @@
 *cache*
 *env*
+tmp/*
+!tmp/.gitkeep
 !.env.example
 !core/cache.py
 .vscode
