@@ -528,7 +528,7 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
             for att in attachments_info:
                 doc = None
                 try:
-                    doc = api.attachments_get_data(att.get('saved_name'))
+                    doc = await api.attachments_get_data(att.get('saved_name'))
                 except Exception as err:
                     log.error(err)
                     continue
@@ -537,5 +537,10 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 log.debug(str(doc.absolute()))
                 media_group.add_document(media=types.BufferedInputFile(
                     file=file_get_bytes(doc.absolute()), filename=att.get('real_name')))
-            await c.message.answer_media_group(media=media_group.build(), reply_to_message_id=c.message.message_id)
+            try:
+                await c.message.answer_media_group(media=media_group.build(), reply_to_message_id=c.message.message_id)
+            except TelegramBadRequest as err:
+                log.error(err)
+                await c.answer("Internal error 500")
+                return
     await c.answer("Операция выполнена")

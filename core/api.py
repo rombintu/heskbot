@@ -109,20 +109,23 @@ class API:
             log.error(errConn)
         return response
     
-    def download_file(self, path, filename, params={}):
-        response = internal_error
+    async def download_file(self, path, filename):
+        filepath = pathlib.Path('./tmp').joinpath(filename)
         try:
-            reps = requests.get(f"{self.url}/{path}", headers=self.headers, params=params, stream=True)
-            log.debug(reps.url)
-            filepath = pathlib.Path('./tmp').joinpath(filename)
-            with open(filepath, "wb") as stream:
-                for chunk in reps.iter_content(chunk_size=1024):
-                    if chunk:
-                        stream.write(chunk)
-            return filepath.absolute()
-        except requests.exceptions.ConnectionError as errConn:
-            log.error(errConn)
-        return response
+            async with aiohttp.ClientSession(headers=self.headers) as session:
+                async with session.get(f"{self.url}/{path}") as resp:
+                    log.debug(resp.url)
+                    if resp.status != 200:
+                        log.error(f"Failed to download file, status: {resp.status}")
+                        return None
+                    with filepath.open("wb") as stream:
+                        async for chunk in resp.content.iter_chunked(1024):
+                            stream.write(chunk)
+        except aiohttp.ClientError as err:
+            log.error(f"Client error: {err}")
+        except Exception as e:
+            log.error(f"Error: {e}")
+        return filepath.absolute()
         
     def delete_request(self, path):
         response = internal_error
@@ -356,11 +359,11 @@ class API:
             return []
         return response
     
-    def attachments_get_data(self, filepath_name: str):
+    async def attachments_get_data(self, filepath_name: str):
         file = file_get(filepath_name)
         if file:
             return file.absolute()
-        filepath = self.download_file(
+        filepath = await self.download_file(
             api_paths["attachments"]["download"].format(filepath_name=filepath_name),
             filename=filepath_name
             )
