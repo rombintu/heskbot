@@ -82,6 +82,11 @@ def file_get(filename: str):
     else:
         return None 
 
+def file_get_bytes(filepath: str):
+    with open(filepath, "rb") as file:
+        content = file.read()
+    return content
+
 def parse_image_from_html(html_text: str):
     soup = bs(html_text, 'html5lib')
     images: list[str] = soup.findAll('img')

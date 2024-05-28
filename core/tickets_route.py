@@ -10,7 +10,7 @@ from tools.logger import logger as log
 from core.keyboards import categories_list, back, keyboard_cf_if_need, back_or_send, tickets_list, ticket_url
 from core.keyboards import ticket_actions, admins_list
 from aiogram.exceptions import TelegramBadRequest
-from tools.utils import validate_date, get_today, if_type_is_date, to_body, priorities
+from tools.utils import validate_date, get_today, if_type_is_date, to_body, priorities, file_get_bytes
 
 router = Router()
 
@@ -282,6 +282,7 @@ async def handle_ticket_search(message: types.Message, state: FSMContext):
                 await message.answer('Ничего не найдено')
             elif len(tickets) == 1:
                 ticket = tickets[0]
+                ticket['attachments_info'] = api.attachments_get_info(ticket.get('id'))
                 await message.answer(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
@@ -531,6 +532,10 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 except Exception as err:
                     log.error(err)
                     continue
-                media_group.add_document(media=doc.absolute(), caption=att.get('real_name'))
-            await c.message.answer_media_group(media=media_group.build())
+                if not doc:
+                    continue
+                log.debug(str(doc.absolute()))
+                media_group.add_document(media=types.BufferedInputFile(
+                    file=file_get_bytes(doc.absolute()), filename=att.get('real_name')))
+            await c.message.answer_media_group(media=media_group.build(), reply_to_message_id=c.message.message_id)
     await c.answer("Операция выполнена")
