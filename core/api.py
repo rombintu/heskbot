@@ -367,7 +367,7 @@ class API:
             api_paths["attachments"]["download"].format(filepath_name=filepath_name),
             filename=filepath_name
             )
-        if not filepath or type(filepath) != str:
+        if not filepath:
             return None
         return filepath
     
