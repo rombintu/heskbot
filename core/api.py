@@ -42,6 +42,9 @@ api_paths = {
     "attachments": {
         "info": "attachments/info/{ticket_id}",
         "download": "attachments/download/{filepath_name}"
+    },
+    "replies": {
+        "post": "replies/{ticket_id}"
     }
 }
 
@@ -370,5 +373,13 @@ class API:
         if not filepath:
             return None
         return filepath
+    
+    async def reply_add(self, ticket_id: int, content: str, reply_name: str):
+        data = {
+            "reply_name": reply_name,
+            "content": content
+        }
+        log.debug(data)
+        await self.async_post_request(api_paths["replies"]["post"].format(ticket_id=ticket_id), data=data)
     
 api = API(Config.api_url)

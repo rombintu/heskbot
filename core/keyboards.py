@@ -19,7 +19,8 @@ btns = {
         "assigned": "Назначить 👨‍🔧",
         "text": "Весь текст 📝",
         "addnote": "Добавить примечание 📌",
-        "attachments": "Вложения 💾"
+        "attachments": "Вложения 💾",
+        "reply": "Ответить ✉️"
     }
 }
 
@@ -51,14 +52,28 @@ def tickets_list(tickets: list):
     builder.adjust(1, 1)
     return builder.as_markup()
 
-def admins_list(admins_list: list, track_id: str):
+# def admins_list(admins_list: list, track_id: str):
+#     builder = ikbuilder()
+#     for a in admins_list:
+#         if a.get('name') == "Admin":
+#             continue
+#         builder.button(
+#             text=f"{a.get('name')}", 
+#             callback_data=f"tickets_assignedch_{a.get('id')}_{track_id}")
+#     builder.button(
+#         text="↩️ Отмена", 
+#         callback_data=f"tickets_get_{track_id}")
+#     builder.adjust(1, 1)
+#     return builder.as_markup()
+
+def admins_list(admins_list: list, track_id: str, action="assignedch"):
     builder = ikbuilder()
     for a in admins_list:
         if a.get('name') == "Admin":
             continue
         builder.button(
             text=f"{a.get('name')}", 
-            callback_data=f"tickets_assignedch_{a.get('id')}_{track_id}")
+            callback_data=f"tickets_{action}_{a.get('id')}_{track_id}")
     builder.button(
         text="↩️ Отмена", 
         callback_data=f"tickets_get_{track_id}")

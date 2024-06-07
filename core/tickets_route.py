@@ -25,6 +25,7 @@ class FormSearchTicket(StatesGroup):
     track_or_email = State()
 
 class FormNote(StatesGroup):
+    action = State()
     email_from = State()
     ticket_id = State()            
 
@@ -119,9 +120,17 @@ async def handle_note_message(message: types.Message, state: FSMContext):
             await message.answer("Отмена добавления примечания")
         case _:
             message_note = message.text
-            api.notes_add(data.get('ticket_id'), message_note, note_from=data.get('note_from'))
-            await message.answer("Примечание было добавлено")
-
+            log.debug(data)
+            match data.get('action'):
+                case "addnote" | "addnotech":
+                    api.notes_add(data.get('ticket_id'), message_note, email_from=data.get('email_from'))
+                    await message.answer("Примечание было добавлено")
+                case "reply" | "replych":
+                    await api.reply_add(data.get('ticket_id'), message_note, reply_name=data.get('email_from'))
+                    await message.answer("Ответ был отправлен")
+                case _:
+                    await message.answer("Непредвиденная ошибка")
+                    
 @router.message(FormTicket.subject)
 async def handle_ticket_subject(message: types.Message, state: FSMContext):
     match message.text:
@@ -427,7 +436,7 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=admins_list(admins, trackid)
+                    reply_markup=admins_list(admins, trackid, action="assignedch")
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
@@ -493,15 +502,74 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
             await c.message.answer(
                 f"<code>{ticket.get('trackid')}</code>: {message}", 
                 parse_mode=html_mode)
-        case "addnote":
+        case "addnote" | "reply":
             trackid = data[-1]
             ticket = api.ticket_get_by_trackid(trackid)
             if not ticket:
                 await c.answer(f"Заявка {trackid} не найдена")
                 return
             client = await api.client_get(c.message.chat.id)
-            await c.message.answer(f"Введите примечание [от {client.get('name')}]:\n/cancel - Отмена")
-            await state.update_data(email_from=client.get('email'))
+            action_rus = "примечание"
+            contact_from = client.get('email')
+            if action == 'reply':
+                action_rus = "ответ"
+                contact_from = client.get('fio')
+
+            if c.message.chat.id < 0:
+                admins = await api.admins_get()
+                try:
+                    await c.message.edit_text(
+                        ticket2workflow2text(ticket),
+                        parse_mode=html_mode,
+                        reply_markup=admins_list(admins, trackid, action=action+"ch")
+                    )
+                except TelegramBadRequest as err:
+                    log.warning(err)
+                return
+            
+            await c.message.answer(f"Введите {action_rus} [от {client.get('fio')}]:\n/cancel - Отмена")
+            await state.update_data(action=action)
+            await state.update_data(email_from=contact_from)
+            await state.update_data(ticket_id=ticket.get('id'))
+            await state.set_state(FormNote.ticket_id)
+            ticket['status'] = 'Изменен (Выполните синхронизацию)'
+            try:
+                await c.message.edit_text(
+                    ticket2workflow2text(ticket),
+                    parse_mode=html_mode,
+                    reply_markup=ticket_actions(ticket.get('trackid'))
+                )
+            except TelegramBadRequest as err:
+                log.warning(err)
+        case "addnotech" | "replych":
+            trackid = data[-1]
+            ticket = api.ticket_get_by_trackid(trackid)
+            if not ticket:
+                await c.answer(f"Заявка {trackid} не найдена")
+                return
+            admin_id = data[-2]
+            admins = await api.admins_get()
+            admin_info: dict = None
+            if admin_id.isdigit():
+                for a in admins:
+                    if a.get('id') == int(admin_id):
+                        admin_info = a
+            else:
+                await c.answer("Администратор не найден")
+                return
+            if not admin_info:
+                await c.answer("Администратор не найден")
+                return
+            
+            action_rus = "примечание"
+            contact_from = admin_info.get('email')
+            if action == 'replych':
+                action_rus = "ответ"
+                contact_from = admin_info.get('name')
+
+            await c.message.answer(f"Введите {action_rus} [от {admin_info.get('name')}]:\n/cancel - Отмена")
+            await state.update_data(action=action)
+            await state.update_data(email_from=contact_from)
             await state.update_data(ticket_id=ticket.get('id'))
             await state.set_state(FormNote.ticket_id)
             ticket['status'] = 'Изменен (Выполните синхронизацию)'
@@ -515,10 +583,6 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 log.warning(err)
         case "attachments":
             trackid = data[-1]
-            # ticket = api.ticket_get_by_trackid(trackid)
-            # if not ticket:
-            #     await c.answer(f"Заявка {trackid} не найдена")
-            #     return
             attachments_info = api.attachments_get_info(trackid)
             if not attachments_info:
                 await c.answer("Вложений не найдено")
@@ -543,4 +607,35 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 log.error(err)
                 await c.answer("Internal error 500")
                 return
+        # case "reply":
+        #     trackid = data[-1]
+        #     ticket = api.ticket_get_by_trackid(trackid)
+        #     if not ticket:
+        #         await c.answer(f"Заявка {trackid} не найдена")
+        #         return
+        #     if c.message.chat.id < 0:
+        #         admins = await api.admins_get()
+        #         try:
+        #             await c.message.edit_text(
+        #                 ticket2workflow2text(ticket),
+        #                 parse_mode=html_mode,
+        #                 reply_markup=admins_list(admins, trackid, action="replych")
+        #             )
+        #         except TelegramBadRequest as err:
+        #             log.warning(err)
+        #         return
+        #     client = await api.client_get(c.message.chat.id)
+        #     await c.message.answer(f"Введите ответ [от {client.get('fio')}]:\n/cancel - Отмена")
+        #     await state.update_data(email_from=client.get('email'))
+        #     await state.update_data(ticket_id=ticket.get('id'))
+        #     await state.set_state(FormNote.ticket_id)
+        #     ticket['status'] = 'Изменен (Выполните синхронизацию)'
+        #     try:
+        #         await c.message.edit_text(
+        #             ticket2workflow2text(ticket),
+        #             parse_mode=html_mode,
+        #             reply_markup=ticket_actions(ticket.get('trackid'))
+        #         )
+        #     except TelegramBadRequest as err:
+        #         log.warning(err)
     await c.answer("Операция выполнена")
