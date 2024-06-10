@@ -45,6 +45,26 @@ def check_client_isexist(func):
                     await cache.save("reg", NOT_OK, message.chat.id)
     return wrapper
 
+def check_client_isexist_with_state(func):
+    async def wrapper(message: types.Message, state: FSMContext):
+        client = None
+        ok = await cache.get("reg", message.chat.id)
+        match ok:
+            case "OK":
+                await func(message, state) # Идем дальше
+            case "NOT OK" | None:
+                # Не пропускаем дальше
+                await message.answer("Анонимные заявки не разрешены.\nПройдите пожалуйста проверку /profile")
+            case None:
+                client = await api.client_get(message.chat.id)
+                if client:
+                    await cache.save("reg", OK, message.chat.id)
+                    await func(message, state) # Идем дальше
+                else:
+                    await cache.save("reg", NOT_OK, message.chat.id)
+    return wrapper
+
+
 def check_client_isadmin(func):
     async def wrapper(message: types.Message, state: FSMContext):
         client = await api.client_get(message.chat.id)

@@ -117,7 +117,7 @@ async def handle_note_message(message: types.Message, state: FSMContext):
     await state.clear()
     match message.text:
         case "/cancel":
-            await message.answer("Отмена добавления примечания")
+            await message.answer("Отмена операции")
         case _:
             message_note = message.text
             log.debug(data)
@@ -292,10 +292,11 @@ async def handle_ticket_search(message: types.Message, state: FSMContext):
             elif len(tickets) == 1:
                 ticket = tickets[0]
                 ticket['attachments_info'] = api.attachments_get_info(ticket.get('id'))
+                client_info = await api.client_get(message.chat.id)
                 await message.answer(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'))
+                    reply_markup=ticket_actions(ticket.get('trackid'), ticket.get('status'), client_info.get('isadmin'))
                 )
             else:
                 await message.answer(
@@ -373,12 +374,12 @@ def skip_actions_by_status(status: str):
             return ['inprogress', 'open']
         case _:
             return ['open']
-        
+
 @router.callback_query(F.data.startswith(f"tickets_"))
 async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
     await state.clear()
     data = c.data.split("_")[1:]
-    # client_info = await api.client_get(c.message.chat.id)
+    client_info = await api.client_get(c.message.chat.id)
     action = data[0] 
     match action:
         case "send":
@@ -418,11 +419,12 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 return
             ticket['attachments_info'] = api.attachments_get_info(ticket.get('id'))
             try:
-                skip_actions = skip_actions_by_status(ticket.get('status'))
+                # skip_actions = skip_actions_by_status(ticket.get('status'))
+                # log.debug(skip_actions)
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'), skip_actions)
+                    reply_markup=ticket_actions(ticket.get('trackid'), ticket.get('status'), client_info.get('isadmin'))
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
@@ -452,21 +454,22 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 \nНазначена: {user_info_new.get('name')} 👨‍💻\n{'' if not user_info_new.get('username') else '@'+ user_info_new.get('username')}",
                 parse_mode=html_mode, reply_markup=ticket_url(ticket.get('trackid')))
             try:
-                skip_actions = skip_actions_by_status(ticket.get('status'))
+                # skip_actions = skip_actions_by_status(ticket.get('status'))
+                # skip_actions = skip_actions_by_role(isadmin=client_info.get('isadmin'), old_skip=skip_actions)
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'), skip_actions=skip_actions)
+                    reply_markup=ticket_actions(ticket.get('trackid'), ticket.get('status'), client_info.get('isadmin'))
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
         case "close" | "open" | "inprogress":
             trackid = data[-1]
             new_status = 3
-            skip_actions = ['open', 'assigned']
+            # skip_actions = ['open', 'assigned']
             if action == 'inprogress': 
                 new_status = 4
-                skip_actions.append('inprogress')
+                # skip_actions.append('inprogress')
             elif action == 'open': 
                 new_status = 0
             ticket = api.ticket_get_by_trackid(trackid)
@@ -479,7 +482,7 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'), skip_actions=skip_actions)
+                    reply_markup=ticket_actions(ticket.get('trackid'), new_status, client_info.get('isadmin'))
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
@@ -537,7 +540,7 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'))
+                    reply_markup=ticket_actions(ticket.get('trackid'), ticket.get('status'), client_info.get('isadmin'))
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
@@ -577,7 +580,7 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 await c.message.edit_text(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,
-                    reply_markup=ticket_actions(ticket.get('trackid'))
+                    reply_markup=ticket_actions(ticket.get('trackid'), ticket.get('status'), client_info.get('isadmin'))
                 )
             except TelegramBadRequest as err:
                 log.warning(err)
@@ -607,35 +610,4 @@ async def tickets_callbacks(c: types.CallbackQuery, state: FSMContext):
                 log.error(err)
                 await c.answer("Internal error 500")
                 return
-        # case "reply":
-        #     trackid = data[-1]
-        #     ticket = api.ticket_get_by_trackid(trackid)
-        #     if not ticket:
-        #         await c.answer(f"Заявка {trackid} не найдена")
-        #         return
-        #     if c.message.chat.id < 0:
-        #         admins = await api.admins_get()
-        #         try:
-        #             await c.message.edit_text(
-        #                 ticket2workflow2text(ticket),
-        #                 parse_mode=html_mode,
-        #                 reply_markup=admins_list(admins, trackid, action="replych")
-        #             )
-        #         except TelegramBadRequest as err:
-        #             log.warning(err)
-        #         return
-        #     client = await api.client_get(c.message.chat.id)
-        #     await c.message.answer(f"Введите ответ [от {client.get('fio')}]:\n/cancel - Отмена")
-        #     await state.update_data(email_from=client.get('email'))
-        #     await state.update_data(ticket_id=ticket.get('id'))
-        #     await state.set_state(FormNote.ticket_id)
-        #     ticket['status'] = 'Изменен (Выполните синхронизацию)'
-        #     try:
-        #         await c.message.edit_text(
-        #             ticket2workflow2text(ticket),
-        #             parse_mode=html_mode,
-        #             reply_markup=ticket_actions(ticket.get('trackid'))
-        #         )
-        #     except TelegramBadRequest as err:
-        #         log.warning(err)
     await c.answer("Операция выполнена")

@@ -21,7 +21,8 @@ btns = {
         "addnote": "Добавить примечание 📌",
         "attachments": "Вложения 💾",
         "reply": "Ответить ✉️"
-    }
+    },
+    "skip_actions_client": ['inprogress', 'assigned', 'addnote', 'reply']
 }
 
 def client_reload_info(telegram_id: int):
@@ -66,6 +67,12 @@ def tickets_list(tickets: list):
 #     builder.adjust(1, 1)
 #     return builder.as_markup()
 
+# def skip_actions_by_role(isadmin=False, old_skip: list=[]):
+#     new_skips = []
+#     if not isadmin:
+#         new_skips = ['inprogress', 'assigned', 'addnote', 'reply']
+#     return old_skip + new_skips
+
 def admins_list(admins_list: list, track_id: str, action="assignedch"):
     builder = ikbuilder()
     for a in admins_list:
@@ -101,22 +108,31 @@ def ticket_url(track_id: str):
     )
     return builder.as_markup()
 
-def ticket_actions(track_id: str, skip_actions=['open']):
+def ticket_actions(track_id: str, ticket_status, isadmin=False):
     builder = ikbuilder()
+    skip_actions = ['open']
+    if ticket_status == 'Решена' or ticket_status == 3:
+        skip_actions = ['inprogress', 'close', 'assigned']
+    elif ticket_status == 'В работе' or ticket_status == 4:
+        skip_actions = ['inprogress', 'open']
+
     for action, ru in btns["ticket"].items():
+        if not isadmin and action in btns['skip_actions_client']:
+            continue
         if action in skip_actions:
             continue
         builder.button(
             text=ru, 
             callback_data=f"tickets_{action}_{track_id}")
-    # if done:
-    #     builder.button(
-    #             text="Открыть 📤", 
-    #             callback_data=f"tickets_open_{track_id}"
-    #         )
-    builder.button(
-        text="Подробнее 🖥", url=f"{Config.web_url}/admin/admin_ticket.php?track={track_id}"
-    )
+    
+    if isadmin:
+        builder.button(
+            text="Подробнее 🖥", url=f"{Config.web_url}/admin/admin_ticket.php?track={track_id}"
+        )
+    else:
+        builder.button(
+            text="Подробнее 🖥", url=f"{Config.web_url}/ticket.php?track={track_id}"
+        )
     builder.adjust(1, 2)
     return builder.as_markup()
 
