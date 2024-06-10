@@ -283,16 +283,24 @@ async def handle_ticket_search(message: types.Message, state: FSMContext):
             await state.clear()
             tickets = []
             track_or_email: str = message.text
-            if "@" in track_or_email:
-                tickets = api.tickets_get_my_all(track_or_email, all_status=True)
+            client_info = await api.client_get(message.chat.id)
+            if client_info.get('isadmin'):
+                if "@" in track_or_email:
+                    tickets = api.tickets_get_my_all(track_or_email, all_status=True)
+                else:
+                    found_ticket = api.ticket_get_by_trackid(track_or_email)
+                    if found_ticket:
+                        tickets.append(found_ticket)
             else:
-                tickets.append(api.ticket_get_by_trackid(track_or_email))
+                found_ticket = api.ticket_get_by_trackid(track_or_email)
+                if found_ticket:
+                    tickets.append(found_ticket)
+            log.debug(tickets)
             if not tickets:
-                await message.answer('Ничего не найдено')
+                await message.answer('Ничего не найдено или вы не являетесь Администратором для просмотра информации')
             elif len(tickets) == 1:
-                ticket = tickets[0]
+                ticket: dict = tickets[0]
                 ticket['attachments_info'] = api.attachments_get_info(ticket.get('id'))
-                client_info = await api.client_get(message.chat.id)
                 await message.answer(
                     ticket2workflow2text(ticket),
                     parse_mode=html_mode,

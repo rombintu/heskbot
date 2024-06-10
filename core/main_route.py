@@ -130,7 +130,7 @@ async def handle_command_get_my_tickets_adm(message: types.Message, state: FSMCo
 @clients_route.check_client_isexist_with_state
 async def handle_command_search_ticket(message: types.Message, state: FSMContext):
     await state.set_state(tickets_route.FormSearchTicket.track_or_email)
-    await message.answer("Введите трек или почту заявителя, тикета который ищете\n/cancel - Отмена")
+    await message.answer("Введите трек или почту заявителя, тикета который ищете\nПоиск по почте доступен только администратору\n/cancel - Отмена")
 
 @dp.message(Command('stats'))
 @clients_route.check_client_isadmin
